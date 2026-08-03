@@ -1,0 +1,6 @@
+{
+  "comment": "All balance numbers live here, never in code. tierMultipliers index = tier; tiers past the end of the list reuse the last value. statRollVariance 0.15 = ±15% random roll per stat.",
+  "tierMultipliers": [1.0, 1.5, 2.2, 3.2, 4.6, 6.5, 9.0],
+  "statRollVariance": 0.15,
+  "eggsPerBatch": 4
+}

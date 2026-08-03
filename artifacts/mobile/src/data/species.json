@@ -1,0 +1,13 @@
+{
+  "comment": "Species list. 'sprite' is a placeholder field — drop real art file paths in later without touching code. baseStats are the tier-0 starting stats before random rolls.",
+  "species": [
+    { "id": "cindret",  "name": "Cindret",  "sprite": null, "baseStats": { "hp": 42, "atk": 14, "def": 8,  "spd": 12 } },
+    { "id": "mossling", "name": "Mossling", "sprite": null, "baseStats": { "hp": 50, "atk": 9,  "def": 13, "spd": 8  } },
+    { "id": "puddlet",  "name": "Puddlet",  "sprite": null, "baseStats": { "hp": 46, "atk": 11, "def": 11, "spd": 10 } },
+    { "id": "zephyrl",  "name": "Zephyrl",  "sprite": null, "baseStats": { "hp": 38, "atk": 12, "def": 7,  "spd": 17 } },
+    { "id": "boulderb", "name": "Boulderb", "sprite": null, "baseStats": { "hp": 55, "atk": 10, "def": 16, "spd": 5  } },
+    { "id": "sparkit",  "name": "Sparkit",  "sprite": null, "baseStats": { "hp": 40, "atk": 15, "def": 8,  "spd": 14 } },
+    { "id": "gloomo",   "name": "Gloomo",   "sprite": null, "baseStats": { "hp": 44, "atk": 13, "def": 10, "spd": 11 } },
+    { "id": "shimmet",  "name": "Shimmet",  "sprite": null, "baseStats": { "hp": 44, "atk": 12, "def": 12, "spd": 10 } }
+  ]
+}

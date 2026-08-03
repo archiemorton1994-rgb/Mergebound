@@ -1,0 +1,96 @@
+I'm building a mobile creature-merging RPG. I want you to create only the project scaffold and the first vertical slice. Do not build the full game. I will add features in later, separate steps.
+
+I am not a developer, so I need clean structure and clear explanations more than clever code.
+
+Stack
+React Native with Expo (TypeScript)
+Must be able to run in the Expo web preview so I can test quickly
+Target platform is iOS eventually, so please avoid anything web-only
+No backend, no database, no accounts — everything is local for now
+
+Before you start: confirm you can scaffold a working Expo + TypeScript project in this environment. If there's a problem with that, tell me before writing code rather than substituting a different stack.
+
+Non-negotiable architecture rule
+
+Game logic must be completely separate from UI.
+
+src/game/ — pure TypeScript functions. Merge rules, stat generation, save/load serialisation. These files must not import anything from React, React Native, or any UI library. They take data in and return data out.
+src/screens/ — the React Native screens and components. These call into src/game/ but contain no game rules of their own.
+src/data/ — content as JSON: type definitions, species list, tier settings, balance numbers. No hardcoded game values inside logic or UI files.
+
+This matters a lot to me. If a rule or a number ends up hardcoded inside a screen component, that's a bug.
+
+Graphics
+
+Placeholder only. Creatures render as coloured rounded rectangles with their name, tier, types and stats as text. Colour is derived from the creature's primary type. Do not source, generate, or reference any image assets — every sprite reference must be a field in the data file so real art can be dropped in later without touching code.
+
+Game data model
+
+Creature
+
+id — unique
+speciesId — references the species list in src/data/
+name
+tier — integer, starts at 0
+types — array, minimum 1, maximum 2, never more
+stats — { hp, atk, def, spd }
+parentIds — array of the two creatures it was merged from (empty for hatched creatures)
+
+Types — 8 total, defined in data, easily renamed later.
+
+Six core types in a weakness ring, where each is strong against the next and weak to the one before it:
+
+Ember → Bloom → Tide → Gale → Crag → Volt → Ember
+
+Two rare types, Umbra and Lumen, which are strong against each other only and neutral against everything else.
+
+Store this as a data table, not as if/else logic.
+
+Merge rules
+
+merge(creatureA, creatureB) → newCreature. Implement exactly this:
+
+Tier
+
+If both parents are the same tier T, result is tier T + 1
+If parents are different tiers, result is the higher of the two tiers (no increase)
+
+Types
+
+Take the higher-tier parent's types first, then the other parent's types
+Remove duplicates
+Take the first two only. A creature can never have more than two types
+
+Stats
+
+Base = the average of the two parents' stats, per stat
+Multiply by the tier multiplier from the data file
+Apply a random roll of ±15% per stat, rounded to integers
+
+Species — inherit from the higher-tier parent. On a tie, pick either deterministically.
+
+Consumption — both parent creatures are removed from the collection; the result is added.
+
+Merging must be a pure function with no side effects. Write it so the same inputs always produce the same outputs given a seeded random source.
+
+Slice 1 — the only thing to build
+Egg screen. Show four eggs. Each egg is a tier-0 creature with a random species and a single random type, generated when the screen loads.
+Player selects two eggs.
+Hatch. Both hatch into visible creatures — show name, tier, types and all four stats for each.
+Merge. A button merges the two hatched creatures using the rules above.
+Result. Show the resulting creature clearly, including its types and stats, and how it compares to its parents.
+Collection. The result is stored in the player's collection.
+Save and load. State persists to local storage. Closing and reopening the app restores the collection exactly.
+Do NOT build any of the following
+
+Battles, enemies, campaign, zones, levels, gear, the forge, currencies, the shop, in-app purchases, idle or offline earnings, achievements, challenges, animations, or sound. I will ask for these individually later.
+
+If you think one of them is needed for slice 1 to work, stop and ask me instead of building it.
+
+When you're done
+Initialise git and make a single commit with the message slice 1: egg hatch and merge
+Give me a short plain-English summary of what each file does — I can't read the code, so this is how I'll navigate the project
+Tell me exactly how to run the preview and test it
+List anything in my spec that was ambiguous and what you assumed
+
+Ask me questions now if anything above is unclear. I would much rather answer questions than get code built on a wrong assumption.
