@@ -100,6 +100,18 @@ First step taken: creatures are now drawn as procedural vector portraits rather 
 2. **Damage did not grow with tier while health did.** The attack/defence ratio cancels in an even fight, so a tier-6 mirror match needed ~1516 hits against a 50-round cap: an unwinnable draw. Damage now scales on the attacker's cumulative multiplier. **Fixing bug 1 alone would have exposed this and made every high-tier battle a permanent stalemate** — the absurd crit multiplier was the only thing punching through the inflated health.
 3. **The battle engine could freeze.** A round's turn order is fixed at the start of the round, so creatures killed mid-round stay queued; if every remaining entry was dead while both sides still had someone alive, the engine stopped producing an actor and never advanced the round, so `runBattle` span forever. Reachable in any 2-v-2 where both sides trade kills in one round. On a device that is a frozen game.
 
+### A balance decision for the owner: what the perfect-roll countdown counts
+
+*Raised by the 2026-08-03 review. Not a bug — the code does exactly what this file says — but worth a deliberate answer before the merge screen ships.*
+
+The countdown to a guaranteed perfect roll counts **merges**, and now only merges that cost merge stones. It does not care how much they cost. A tier-1 merge costs 1 stone, so ten of them cost 10 stones and buy the guarantee — the same guarantee ten tier-5 merges (500 stones) would buy.
+
+The review flagged this as an exploit. It was checked and it is not one: nine ordinary same-tier merges also cost 9 stones **and hand the player nine tier-2 creatures on top**, whereas grinding cheap junk merges hands them nothing. The cheap route is strictly worse than simply playing. It opens no path ordinary play does not already have.
+
+But it is still a real question: *should ten cheap merges buy the same guarantee as ten expensive ones?* Both answers are defensible. Counting merges (today) makes pity a steady, legible promise at every tier. Counting stones spent would make the guarantee cost proportionally more the higher you climb.
+
+**Recommendation: leave it counting merges.** It is what DESIGN.md's settled principles already describe, it is far easier to explain to a player, and the daily stone cap already bounds how fast anyone can reach it. Changing it would alter how quickly pity arrives at every tier — a re-litigation of a settled principle, which needs the owner, not a quiet patch.
+
 **Found by an adversarial review on 2026-08-03 and still open.** None are live yet (idle income and the collection tools are not wired to any screen), but each is cheaper to fix before they are than after:
 
 - **`idleRoster` picks who earns by `creaturePower` but pays them by tier.** Those two orderings can disagree, so the roster can bench a creature that would have paid more than the one keeping it out — and the player-facing "these are earning" list can show their biggest earner as not earning. Pick and pay must use the same ordering. Fix when idle income gets a screen.
