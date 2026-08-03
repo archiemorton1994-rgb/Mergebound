@@ -32,11 +32,23 @@ Note the chain this creates: gems → gold → merge stones → merges. That is 
 
 **Art is drawn, not photographed.** *Decided by the owner 2026-08-03.* A hybrid approach: authored illustrations for the fixed, finite things (eggs, battle backdrops, region scenes, tutorial art), and **procedural vector art for creatures**, derived from the creature's own data. Creatures must stay procedural — merging can produce far more species/type combinations than anyone can hand-draw, and every one of them needs to look deliberate. See `src/art/creatureArt.ts`.
 
+**Merge stone supply is capped per day, and money cannot raise the cap.** *Decided 2026-08-03.* 60 earned + 30 bought = 90 a day, keyed to a day counter that never runs backwards. This is the single number that bounds every currency exploit at once: a top-tier creature costs 162 stones, so it takes at least two real days for anybody — biggest spender, hardest grinder, or someone winding their device clock. Money buys speed *up to* the ceiling. Easy to raise later; very hard to impose once players are used to unlimited.
+
+**Anything derived from the device clock may only ever pay gold.** *Decided 2026-08-03.* A purely local offline economy cannot be made tamper-proof, so the design makes tampering pointless rather than impossible: idle income pays gold and nothing else, and gold's only route to merge stones passes the daily purchase cap. The whole blast radius of a clock cheat is "that player has a big gold number".
+
+**The perfect-roll countdown only advances on merges that were paid for.** *Decided 2026-08-03.* Tier-0 merges are free, so without this a player could farm free merges to force a guaranteed perfect roll — and, via gems → gold → stones, money would accelerate it. That would make real money buy a *better outcome*, which is the one line that must never be crossed. Free merges are simply invisible to the pity system.
+
+**No energy or stamina system.** *Decided by the owner 2026-08-03, rejecting the proposal that used to sit below.* Merge stones already meter how fast a player progresses; energy would be a second brake on a car that already has one, and players feel a second brake as punishment rather than pacing. Recorded as rejected so it is not re-proposed. Monetisation comes from time-savers, cosmetics and an eventual pass.
+
+**Real-money purchases are deferred; the store ships spend-only.** *Decided 2026-08-03.* No payments library is installed, `expo-in-app-purchases` is deprecated, and the live alternatives need a custom dev build that cannot run in the web preview — the owner's only way to see the game. Gold, merge stone and cosmetic sections all work for real; the gems tab stays behind a flag and simply does not render, so nothing looks broken.
+
 ---
 
 ## Proposed, not yet built
 
-### Story premise (proposed, awaiting sign-off)
+### Story premise — **APPROVED by the owner 2026-08-03**
+
+*Signed off as written. Build the campaign against it. Keep all player-facing wording in a data file so it can be reworded without touching code.*
 
 The nine elements once flowed from a single source, **the Wellspring**. A cataclysm — **the Sundering** — shattered it, scattering the **Wardens** that lived in harmony with it as unstable single-typed hatchlings. That is what eggs *are*: debris of the Sundering.
 
@@ -58,7 +70,9 @@ World Map → **Region** (themed to a type, e.g. an Ember region "Cinderreach") 
 3. **Compendium** — every species×type combo ever obtained. Targets completionism and the goal-gradient effect, which is what sustains engagement over weeks rather than minutes.
 4. **Limited-time banners** — hatching is already rarity-weighted, so a "featured type" event is a temporary weight override plus a countdown. Direct reuse.
 5. **Reveal-moment polish** — slow, suspenseful per-stat reveal with a sting on any roll ≥90 rather than slamming all 8 numbers in at once. The roll system is already a near-miss engine; this amplifies something already built for near-zero engineering cost.
-6. **Energy/stamina gating** — ⚠️ the easiest system here to make players resent. Tune generously; treat as a monetisation lever (sell refills), never as a wall.
+6. ~~**Energy/stamina gating**~~ — **REJECTED by the owner 2026-08-03.** See Settled principles. Do not re-propose.
+
+All five surviving items are specified concretely in [PLAN.md](PLAN.md), along with which are in the current build slice and which are deliberately deferred (hatch pity and banners are deferred because both need hatch-time rolling, which would break the tutorial's resume).
 
 ---
 
@@ -80,7 +94,15 @@ First step taken: creatures are now drawn as procedural vector portraits rather 
 
 ## Known gaps in what's built
 
-- No rewards or currency payout from battles — currencies don't exist yet.
+**Three combat bugs were found and fixed on 2026-08-03** during the design review, before any new feature work. Recorded here because two of them had been masking each other and re-introducing either one alone would break the game worse than both together:
+
+1. **Critical-hit stats grew with tier.** By tier 4 every species was above 100% crit chance — every hit a critical — and a tier-6 creature hit for ~4400x normal damage. Percentages are not amounts; they now never take the tier multiplier.
+2. **Damage did not grow with tier while health did.** The attack/defence ratio cancels in an even fight, so a tier-6 mirror match needed ~1516 hits against a 50-round cap: an unwinnable draw. Damage now scales on the attacker's cumulative multiplier. **Fixing bug 1 alone would have exposed this and made every high-tier battle a permanent stalemate** — the absurd crit multiplier was the only thing punching through the inflated health.
+3. **The battle engine could freeze.** A round's turn order is fixed at the start of the round, so creatures killed mid-round stay queued; if every remaining entry was dead while both sides still had someone alive, the engine stopped producing an actor and never advanced the round, so `runBattle` span forever. Reachable in any 2-v-2 where both sides trade kills in one round. On a device that is a frozen game.
+
+Remaining gaps:
+
+- No rewards or currency payout from battles — the wallet persists, but nothing earns or spends yet (PLAN.md Step 1).
 - No PvP, no stat buffs/debuffs beyond heal/drain.
 - No enemy roster variety beyond tier-scaled random generation.
 - No accuracy-vs-heal-move balance pass; move power/accuracy numbers are first-draft.
