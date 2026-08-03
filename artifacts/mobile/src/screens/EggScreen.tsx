@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Link } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { balance, getType } from '@/src/game/content';
 import { generateEggBatch } from '@/src/game/hatch';
@@ -105,7 +106,12 @@ export function EggScreen() {
       style={styles.container}
       contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad, paddingHorizontal: 16, gap: 20 }}
     >
-      <Text style={styles.title}>Hatchery</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Hatchery</Text>
+        <Link href="/battle" style={styles.navLink}>
+          Battle
+        </Link>
+      </View>
       {loadError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>Couldn't load saved data: {loadError}</Text>
@@ -224,10 +230,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     color: '#ffffff',
     fontFamily: 'Inter_700Bold',
     fontSize: 28,
+  },
+  navLink: {
+    color: '#7C5CFF',
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
   },
   sectionLabel: {
     color: 'rgba(255,255,255,0.85)',
