@@ -4,6 +4,8 @@ MergeBound is a mobile creature-merging RPG built with Expo / React Native and T
 
 **The owner cannot read or write code.** Every change must come with a plain-English summary of what changed and why. Automated checks are the owner's only way to verify work — keep them passing and extend them with every logic change.
 
+**Read [DESIGN.md](DESIGN.md) too.** This file covers what *is built*; `DESIGN.md` covers what was *decided, proposed, or deferred* — settled principles not to re-litigate, proposals awaiting sign-off, and known gaps. Together they are the whole project memory; neither is complete alone.
+
 ## The one command that checks everything
 
 ```
