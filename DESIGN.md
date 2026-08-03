@@ -62,6 +62,22 @@ World Map → **Region** (themed to a type, e.g. an Ember region "Cinderreach") 
 
 ---
 
+## The owner's verdict on the current build (2026-08-03)
+
+Archie played the Replit preview and was blunt about it: **"it's just basically a text game currently, which is quite underwhelming."** The systems underneath are sound — the merge loop, battles, hybrid moves and pity all work — but almost none of it is *presented*. This is the highest-priority thread in the project, ahead of finishing the build order.
+
+What he asked for, in his words and roughly his order:
+
+1. **A choosing-of-the-egg tutorial.** New players currently arrive with no guided first moment. The hatch reveal is the game's best beat and nothing sets it up.
+2. **Design your character's appearance.** The Binder needs to be visible and customisable. (Combat role now settled — see Settled principles.)
+3. **A clear campaign understanding.** A player should be able to see where they are, what they're working towards and what comes next. The campaign structure below is proposed but unbuilt, and its absence is felt.
+4. **Scenes and graphics generally.** "There's no visuals to it, basically, it's all text."
+5. Overall: **"make it as addictive as possible and fun."**
+
+First step taken: creatures are now drawn as procedural vector portraits rather than coloured rectangles (`src/art/creatureArt.ts`). That is one screen's worth of the problem. The tutorial, the Binder's appearance, campaign presentation and battle/region backdrops are all still open.
+
+**A working note for whoever picks this up:** verify visual work by actually looking at it. Real UI verification happens in Replit's preview, or in a local `expo start --web` from a session rooted at this repo. The creature portraits above were built without eyes on them and have never been visually reviewed — treat their shapes, proportions and colours as unconfirmed until someone looks.
+
 ## Known gaps in what's built
 
 - No rewards or currency payout from battles — currencies don't exist yet.
