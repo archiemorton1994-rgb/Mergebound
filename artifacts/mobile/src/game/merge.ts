@@ -6,7 +6,7 @@
 import { getSpecies, tierMultiplier } from './content';
 import { rollStat } from './hatch';
 import { balance } from './content';
-import type { Creature, Rng, Stats } from './models';
+import { STAT_KEYS, type Creature, type Rng, type Stats } from './models';
 import { makeId } from './rng';
 
 /**
@@ -32,17 +32,32 @@ export function mergedTypes(a: Creature, b: Creature): string[] {
   return unique.slice(0, 2);
 }
 
-/** Stat rule: per-stat average of parents × tier multiplier, ±variance roll, rounded. */
-export function mergedStats(a: Creature, b: Creature, tier: number, rng: Rng): Stats {
-  const mult = tierMultiplier(tier);
+/**
+ * Stat rule: per-stat average of the parents, with the tier's growth
+ * multiplier applied ONLY when the merge actually raises the tier
+ * (both parents same tier). A cross-tier merge keeps the higher parent's
+ * tier but gets no growth multiplier — the average with a weaker parent
+ * just pulls its stats down. This is what makes "merge like with like"
+ * the correct strategy and closes off cross-tier merging as a free stat
+ * pump. See balance.json and content.ts's cumulativeStatMultiplier for
+ * how same-tier merges are meant to compound into big numbers over time.
+ * Every stat gets its own independent ±variance roll (see rollStat), which
+ * is what makes chasing a "perfect roll" on e.g. critChance meaningful even
+ * when the rest of a merge's rolls are mediocre.
+ */
+export function mergedStats(a: Creature, b: Creature, tier: number, rng: Rng): { stats: Stats; statRolls: Stats } {
+  const tierIncreased = a.tier === b.tier;
+  const mult = tierIncreased ? tierMultiplier(tier) : 1;
   const v = balance.statRollVariance;
-  const avg = (x: number, y: number) => (x + y) / 2;
-  return {
-    hp: rollStat(avg(a.stats.hp, b.stats.hp) * mult, rng, v),
-    atk: rollStat(avg(a.stats.atk, b.stats.atk) * mult, rng, v),
-    def: rollStat(avg(a.stats.def, b.stats.def) * mult, rng, v),
-    spd: rollStat(avg(a.stats.spd, b.stats.spd) * mult, rng, v),
-  };
+  const stats = {} as Stats;
+  const statRolls = {} as Stats;
+  for (const key of STAT_KEYS) {
+    const avg = (a.stats[key] + b.stats[key]) / 2;
+    const { value, rollPercent } = rollStat(avg * mult, rng, v);
+    stats[key] = value;
+    statRolls[key] = rollPercent;
+  }
+  return { stats, statRolls };
 }
 
 /**
@@ -54,13 +69,15 @@ export function merge(a: Creature, b: Creature, rng: Rng): Creature {
   const tier = mergedTier(a, b);
   const dom = dominantParent(a, b);
   const species = getSpecies(dom.speciesId);
+  const { stats, statRolls } = mergedStats(a, b, tier, rng);
   return {
     id: makeId(rng),
     speciesId: species.id,
     name: species.name,
     tier,
     types: mergedTypes(a, b),
-    stats: mergedStats(a, b, tier, rng),
+    stats,
+    statRolls,
     parentIds: [a.id, b.id],
   };
 }

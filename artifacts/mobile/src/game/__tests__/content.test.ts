@@ -5,7 +5,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { allSpecies, allTypes, balance, getSpecies, getType, tierMultiplier } from '../content';
+import {
+  allSpecies,
+  allTypes,
+  balance,
+  cumulativeStatMultiplier,
+  getSpecies,
+  getType,
+  tierMultiplier,
+  typeWeight,
+} from '../content';
+import { STAT_KEYS } from '../models';
 
 describe('content lookups', () => {
   it('finds every species listed in species.json', () => {
@@ -46,6 +56,43 @@ describe('tier multipliers', () => {
   });
 });
 
+describe('cumulativeStatMultiplier (the true, honest tier-power number)', () => {
+  it('is 1 at tier 0 (no growth applied yet)', () => {
+    expect(cumulativeStatMultiplier(0)).toBe(1);
+  });
+
+  it('equals the product of every step multiplier up to that tier', () => {
+    let expected = 1;
+    for (let t = 1; t <= 6; t++) {
+      expected *= tierMultiplier(t);
+      expect(cumulativeStatMultiplier(t)).toBeCloseTo(expected, 9);
+    }
+  });
+
+  it('only ever increases as tier increases', () => {
+    for (let t = 1; t <= 6; t++) {
+      expect(cumulativeStatMultiplier(t)).toBeGreaterThan(cumulativeStatMultiplier(t - 1));
+    }
+  });
+});
+
+describe('type hatch weights', () => {
+  it('every type has a positive weight', () => {
+    for (const t of allTypes) {
+      expect(typeWeight(t)).toBeGreaterThan(0);
+    }
+  });
+
+  it('rarer types have strictly lower weight: common > rare > mythic', () => {
+    const weights = { common: 0, rare: 0, mythic: 0 };
+    for (const t of allTypes) {
+      weights[t.rarity] = typeWeight(t);
+    }
+    expect(weights.common).toBeGreaterThan(weights.rare);
+    expect(weights.rare).toBeGreaterThan(weights.mythic);
+  });
+});
+
 describe('data file sanity', () => {
   it('species ids are unique', () => {
     const ids = allSpecies.map((s) => s.id);
@@ -57,22 +104,26 @@ describe('data file sanity', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('has the eight expected types: the six-ring plus umbra and lumen', () => {
+  it('has the nine expected types: the six-ring, plus umbra/lumen, plus mythic aether', () => {
     const ids = allTypes.map((t) => t.id).sort();
-    expect(ids).toEqual(['bloom', 'crag', 'ember', 'gale', 'lumen', 'tide', 'umbra'].concat('volt').sort());
+    expect(ids).toEqual(
+      ['ember', 'bloom', 'tide', 'gale', 'crag', 'volt', 'umbra', 'lumen', 'aether'].sort(),
+    );
   });
 
-  it('umbra and lumen are the only rare types', () => {
-    const rare = allTypes.filter((t) => t.rare).map((t) => t.id).sort();
-    expect(rare).toEqual(['lumen', 'umbra']);
+  it('umbra and lumen are rare, aether is mythic, everything else is common', () => {
+    const byRarity = (r: 'common' | 'rare' | 'mythic') =>
+      allTypes.filter((t) => t.rarity === r).map((t) => t.id).sort();
+    expect(byRarity('rare')).toEqual(['lumen', 'umbra']);
+    expect(byRarity('mythic')).toEqual(['aether']);
+    expect(byRarity('common')).toEqual(['bloom', 'crag', 'ember', 'gale', 'tide', 'volt'].sort());
   });
 
-  it('every species has positive base stats', () => {
+  it('every species has positive base stats across all eight stats', () => {
     for (const s of allSpecies) {
-      expect(s.baseStats.hp, `${s.id} hp`).toBeGreaterThan(0);
-      expect(s.baseStats.atk, `${s.id} atk`).toBeGreaterThan(0);
-      expect(s.baseStats.def, `${s.id} def`).toBeGreaterThan(0);
-      expect(s.baseStats.spd, `${s.id} spd`).toBeGreaterThan(0);
+      for (const k of STAT_KEYS) {
+        expect(s.baseStats[k], `${s.id} ${k}`).toBeGreaterThan(0);
+      }
     }
   });
 

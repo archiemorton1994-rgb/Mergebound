@@ -3,8 +3,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { allSpecies, allTypes, balance, getSpecies } from '../content';
+import { allSpecies, allTypes, balance, getSpecies, typeWeight } from '../content';
 import { generateEggBatch, hatchEgg, rollStat } from '../hatch';
+import { STAT_KEYS } from '../models';
 import { createRng } from '../rng';
 
 describe('hatching an egg', () => {
@@ -30,17 +31,24 @@ describe('hatching an egg', () => {
     }
   });
 
-  it('rolls stats within ±15% of the species base stats', () => {
-    const keys = ['hp', 'atk', 'def', 'spd'] as const;
+  it('rolls every stat within ±15% of the species base stats', () => {
     for (let seed = 1; seed <= 100; seed++) {
       const c = hatchEgg(createRng(seed));
       const base = getSpecies(c.speciesId).baseStats;
-      for (const k of keys) {
+      for (const k of STAT_KEYS) {
         const min = Math.max(1, Math.floor(base[k] * (1 - balance.statRollVariance)));
         const max = Math.ceil(base[k] * (1 + balance.statRollVariance));
         expect(c.stats[k], `${k} out of range for seed ${seed}`).toBeGreaterThanOrEqual(min);
         expect(c.stats[k], `${k} out of range for seed ${seed}`).toBeLessThanOrEqual(max);
       }
+    }
+  });
+
+  it('records a statRolls percentile for every stat', () => {
+    const c = hatchEgg(createRng(1));
+    for (const k of STAT_KEYS) {
+      expect(c.statRolls[k]).toBeGreaterThanOrEqual(0);
+      expect(c.statRolls[k]).toBeLessThanOrEqual(100);
     }
   });
 
@@ -68,13 +76,58 @@ describe('generating an egg batch', () => {
 describe('the stat roll helper', () => {
   it('never returns less than 1, even for tiny base values', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      expect(rollStat(0.4, createRng(seed), 0.15)).toBeGreaterThanOrEqual(1);
+      expect(rollStat(0.4, createRng(seed), 0.15).value).toBeGreaterThanOrEqual(1);
     }
   });
 
   it('returns whole numbers only', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      expect(Number.isInteger(rollStat(37.6, createRng(seed), 0.15))).toBe(true);
+      expect(Number.isInteger(rollStat(37.6, createRng(seed), 0.15).value)).toBe(true);
     }
+  });
+
+  it('reports a 0-100 roll percentile alongside the value', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const { rollPercent } = rollStat(50, createRng(seed), 0.15);
+      expect(rollPercent).toBeGreaterThanOrEqual(0);
+      expect(rollPercent).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('a roll at the very top of the band reports 100, at the very bottom reports 0', () => {
+    // rng() = 1 -> factor = 1 + variance (max); rng() = 0 -> factor = 1 - variance (min).
+    expect(rollStat(50, () => 1, 0.15).rollPercent).toBe(100);
+    expect(rollStat(50, () => 0, 0.15).rollPercent).toBe(0);
+  });
+});
+
+describe('type hatch odds (rarity)', () => {
+  it('a common type has a much higher hatch weight than a rare type', () => {
+    const common = allTypes.find((t) => t.rarity === 'common');
+    const rare = allTypes.find((t) => t.rarity === 'rare');
+    if (!common || !rare) throw new Error('expected at least one common and one rare type');
+    expect(typeWeight(common)).toBeGreaterThan(typeWeight(rare));
+  });
+
+  it('a rare type has a higher hatch weight than the mythic type', () => {
+    const rare = allTypes.find((t) => t.rarity === 'rare');
+    const mythic = allTypes.find((t) => t.rarity === 'mythic');
+    if (!rare || !mythic) throw new Error('expected at least one rare and one mythic type');
+    expect(typeWeight(rare)).toBeGreaterThan(typeWeight(mythic));
+  });
+
+  it('the mythic type hatches far less often than a common type over a large sample', () => {
+    const mythic = allTypes.find((t) => t.rarity === 'mythic');
+    if (!mythic) throw new Error('expected a mythic type');
+    const rng = createRng(1);
+    let mythicCount = 0;
+    const samples = 20000;
+    for (let i = 0; i < samples; i++) {
+      if (hatchEgg(rng).types[0] === mythic.id) mythicCount++;
+    }
+    // Weighted odds put mythic around 1 in 200; give this a wide margin so
+    // the test isn't flaky, while still catching "rarity does nothing".
+    expect(mythicCount / samples).toBeLessThan(0.02);
+    expect(mythicCount).toBeGreaterThan(0);
   });
 });

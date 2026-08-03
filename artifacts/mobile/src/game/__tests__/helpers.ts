@@ -5,7 +5,28 @@
 
 import type { Creature, Stats } from '../models';
 
-export const defaultStats: Stats = { hp: 40, atk: 12, def: 10, spd: 11 };
+export const defaultStats: Stats = {
+  hp: 40,
+  atk: 12,
+  spAtk: 12,
+  def: 10,
+  spDef: 10,
+  spd: 11,
+  critChance: 5,
+  critDamage: 150,
+};
+
+/** Neutral (50) roll on every stat — used when a test doesn't care about roll quality. */
+export const defaultStatRolls: Stats = {
+  hp: 50,
+  atk: 50,
+  spAtk: 50,
+  def: 50,
+  spDef: 50,
+  spd: 50,
+  critChance: 50,
+  critDamage: 50,
+};
 
 let counter = 0;
 
@@ -19,6 +40,7 @@ export function makeCreature(overrides: Partial<Creature> = {}): Creature {
     tier: 0,
     types: ['ember'],
     stats: { ...defaultStats },
+    statRolls: { ...defaultStatRolls },
     parentIds: [],
     ...overrides,
   };

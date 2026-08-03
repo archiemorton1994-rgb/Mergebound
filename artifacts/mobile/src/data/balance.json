@@ -1,6 +1,12 @@
 {
-  "comment": "All balance numbers live here, never in code. tierMultipliers index = tier; tiers past the end of the list reuse the last value. statRollVariance 0.15 = ±15% random roll per stat.",
+  "comment": "All balance numbers live here, never in code. tierMultipliers[T] is the PER-MERGE growth multiplier applied when two same-tier creatures merge into tier T (see mergedStats in merge.ts) — it is NOT a cumulative from-tier-0 multiplier. Because merging compounds these step multipliers, the true cumulative growth from repeatedly merging tier-0 creatures up the chain is much larger than the raw numbers below suggest (tier 6 lands around 2800x tier-0 base) — that compounding is intentional, it's the 'big numbers' payoff of the merge loop. Use content.ts's cumulativeStatMultiplier(tier) rather than this table directly when tuning anything (like enemy scaling) against a creature's true power at a tier. Cross-tier merges do NOT get a tier multiplier at all (see merge.ts) — only averaging, so merging a strong creature with a weak one dilutes it rather than boosting it. statRollVariance 0.15 = ±15% random roll per stat, applied independently per stat every hatch/merge.",
   "tierMultipliers": [1.0, 1.5, 2.2, 3.2, 4.6, 6.5, 9.0],
   "statRollVariance": 0.15,
-  "eggsPerBatch": 4
+  "eggsPerBatch": 4,
+  "typeRarityWeights": {
+    "comment": "Relative hatch weight per type rarity tier (types.json). With 6 common + 2 rare + 1 mythic type at these weights, a rare type is about 1 in 40 hatches and the mythic Aether is about 1 in 200.",
+    "common": 100,
+    "rare": 15,
+    "mythic": 3
+  }
 }

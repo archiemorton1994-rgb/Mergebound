@@ -1,14 +1,15 @@
 {
-  "comment": "The 8 creature types. 'color' drives the placeholder card colour. Effectiveness is a data table: multiplier applied when 'attacker' type hits 'defender' type. 2 = strong, 0.5 = weak, 1 = neutral. Not used in slice 1 gameplay yet, but stored here so battles can read it later.",
+  "comment": "9 creature types. 'color' drives the placeholder card colour. 'rarity' controls hatch odds via balance.json's typeRarityWeights — common types hatch far more often than rare, and mythic (Aether only, for now) rarer still. Effectiveness is a data table: multiplier applied when 'attacker' type hits 'defender' type. 2 = strong, 0.5 = weak, 1 = neutral. Not used in slice 1 gameplay yet, but stored here so battles can read it later. Design note for whoever builds battles: rarity should not simply mean 'stronger' — a common-type creature should still be able to beat a rare/mythic one on skill/build; rarity should show up as better base stats and better special attacks on the species that roll those types, not as a hard combat trump. Aether has no effectiveness entries yet (neutral to everything) — deliberately left undefined until battles are designed, rather than guessed at now.",
   "types": [
-    { "id": "ember", "name": "Ember", "color": "#E4572E", "rare": false },
-    { "id": "bloom", "name": "Bloom", "color": "#4C9F70", "rare": false },
-    { "id": "tide",  "name": "Tide",  "color": "#3A7CA5", "rare": false },
-    { "id": "gale",  "name": "Gale",  "color": "#7FB7BE", "rare": false },
-    { "id": "crag",  "name": "Crag",  "color": "#8D6A4F", "rare": false },
-    { "id": "volt",  "name": "Volt",  "color": "#E8B21D", "rare": false },
-    { "id": "umbra", "name": "Umbra", "color": "#5B4B8A", "rare": true },
-    { "id": "lumen", "name": "Lumen", "color": "#C9A227", "rare": true }
+    { "id": "ember", "name": "Ember", "color": "#E4572E", "rarity": "common" },
+    { "id": "bloom", "name": "Bloom", "color": "#4C9F70", "rarity": "common" },
+    { "id": "tide",  "name": "Tide",  "color": "#3A7CA5", "rarity": "common" },
+    { "id": "gale",  "name": "Gale",  "color": "#7FB7BE", "rarity": "common" },
+    { "id": "crag",  "name": "Crag",  "color": "#8D6A4F", "rarity": "common" },
+    { "id": "volt",  "name": "Volt",  "color": "#E8B21D", "rarity": "common" },
+    { "id": "umbra", "name": "Umbra", "color": "#5B4B8A", "rarity": "rare" },
+    { "id": "lumen", "name": "Lumen", "color": "#C9A227", "rarity": "rare" },
+    { "id": "aether", "name": "Aether", "color": "#CFE3FF", "rarity": "mythic" }
   ],
   "effectiveness": [
     { "attacker": "ember", "defender": "bloom", "multiplier": 2 },

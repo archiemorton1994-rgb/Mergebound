@@ -7,22 +7,41 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { getType } from '@/src/game/content';
-import type { Creature } from '@/src/game/models';
+import { PERCENT_STAT_KEYS, STAT_KEYS, type Creature, type Stats } from '@/src/game/models';
 
 interface Props {
   creature: Creature;
   /** Optional per-stat deltas vs. something (used for the merge result). */
-  deltas?: { hp: number; atk: number; def: number; spd: number };
+  deltas?: Stats;
   compact?: boolean;
 }
 
-const STAT_KEYS = ['hp', 'atk', 'def', 'spd'] as const;
 const STAT_LABELS: Record<(typeof STAT_KEYS)[number], string> = {
   hp: 'HP',
   atk: 'ATK',
+  spAtk: 'SP.ATK',
   def: 'DEF',
+  spDef: 'SP.DEF',
   spd: 'SPD',
+  critChance: 'CRIT%',
+  critDamage: 'CRIT DMG',
 };
+
+function formatStat(key: (typeof STAT_KEYS)[number], value: number): string {
+  return PERCENT_STAT_KEYS.includes(key) ? `${value}%` : `${value}`;
+}
+
+/**
+ * Colour a stat value by how good its roll was, so a near-perfect roll
+ * visibly pops even in the compact collection list — this is the whole
+ * point of tracking statRolls: "perfect rolls" need to be visible to be
+ * worth chasing.
+ */
+function rollColor(rollPercent: number): string {
+  if (rollPercent >= 90) return '#ffd966';
+  if (rollPercent <= 15) return 'rgba(255,255,255,0.45)';
+  return '#ffffff';
+}
 
 export function CreatureCard({ creature, deltas, compact = false }: Props) {
   const primaryType = getType(creature.types[0] ?? 'ember');
@@ -45,11 +64,13 @@ export function CreatureCard({ creature, deltas, compact = false }: Props) {
           </View>
         ))}
       </View>
-      <View style={styles.statsRow}>
+      <View style={styles.statsGrid}>
         {STAT_KEYS.map((k) => (
           <View key={k} style={styles.stat}>
             <Text style={styles.statLabel}>{STAT_LABELS[k]}</Text>
-            <Text style={styles.statValue}>{creature.stats[k]}</Text>
+            <Text style={[styles.statValue, { color: rollColor(creature.statRolls[k]) }]}>
+              {formatStat(k, creature.stats[k])}
+            </Text>
             {deltas ? (
               <Text style={[styles.delta, deltas[k] >= 0 ? styles.deltaUp : styles.deltaDown]}>
                 {deltas[k] >= 0 ? `+${deltas[k]}` : `${deltas[k]}`}
@@ -109,17 +130,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
   },
-  statsRow: {
+  statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     backgroundColor: 'rgba(0,0,0,0.18)',
     borderRadius: 10,
     paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
   },
   stat: {
     alignItems: 'center',
-    minWidth: 44,
+    width: '25%',
+    paddingVertical: 4,
   },
   statLabel: {
     color: 'rgba(255,255,255,0.75)',

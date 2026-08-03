@@ -1,13 +1,13 @@
 {
-  "comment": "Species list. 'sprite' is a placeholder field — drop real art file paths in later without touching code. baseStats are the tier-0 starting stats before random rolls.",
+  "comment": "Species list. 'sprite' is a placeholder field — drop real art file paths in later without touching code. baseStats are the tier-0 starting stats before random rolls: hp/atk/def/spd are the physical line, spAtk/spDef mirror them for the special line, critChance is a percent chance (6 = 6%), critDamage is the percent damage multiplier on a crit (150 = 1.5x). Species lean physical or special on purpose so type/species combos have some identity ahead of battles being built.",
   "species": [
-    { "id": "cindret",  "name": "Cindret",  "sprite": null, "baseStats": { "hp": 42, "atk": 14, "def": 8,  "spd": 12 } },
-    { "id": "mossling", "name": "Mossling", "sprite": null, "baseStats": { "hp": 50, "atk": 9,  "def": 13, "spd": 8  } },
-    { "id": "puddlet",  "name": "Puddlet",  "sprite": null, "baseStats": { "hp": 46, "atk": 11, "def": 11, "spd": 10 } },
-    { "id": "zephyrl",  "name": "Zephyrl",  "sprite": null, "baseStats": { "hp": 38, "atk": 12, "def": 7,  "spd": 17 } },
-    { "id": "boulderb", "name": "Boulderb", "sprite": null, "baseStats": { "hp": 55, "atk": 10, "def": 16, "spd": 5  } },
-    { "id": "sparkit",  "name": "Sparkit",  "sprite": null, "baseStats": { "hp": 40, "atk": 15, "def": 8,  "spd": 14 } },
-    { "id": "gloomo",   "name": "Gloomo",   "sprite": null, "baseStats": { "hp": 44, "atk": 13, "def": 10, "spd": 11 } },
-    { "id": "shimmet",  "name": "Shimmet",  "sprite": null, "baseStats": { "hp": 44, "atk": 12, "def": 12, "spd": 10 } }
+    { "id": "cindret",  "name": "Cindret",  "sprite": null, "baseStats": { "hp": 42, "atk": 14, "spAtk": 16, "def": 8,  "spDef": 9,  "spd": 12, "critChance": 6, "critDamage": 155 } },
+    { "id": "mossling", "name": "Mossling", "sprite": null, "baseStats": { "hp": 50, "atk": 9,  "spAtk": 11, "def": 13, "spDef": 14, "spd": 8,  "critChance": 4, "critDamage": 145 } },
+    { "id": "puddlet",  "name": "Puddlet",  "sprite": null, "baseStats": { "hp": 46, "atk": 11, "spAtk": 13, "def": 11, "spDef": 12, "spd": 10, "critChance": 5, "critDamage": 150 } },
+    { "id": "zephyrl",  "name": "Zephyrl",  "sprite": null, "baseStats": { "hp": 38, "atk": 12, "spAtk": 10, "def": 7,  "spDef": 8,  "spd": 17, "critChance": 9, "critDamage": 160 } },
+    { "id": "boulderb", "name": "Boulderb", "sprite": null, "baseStats": { "hp": 55, "atk": 10, "spAtk": 7,  "def": 16, "spDef": 15, "spd": 5,  "critChance": 3, "critDamage": 140 } },
+    { "id": "sparkit",  "name": "Sparkit",  "sprite": null, "baseStats": { "hp": 40, "atk": 15, "spAtk": 15, "def": 8,  "spDef": 8,  "spd": 14, "critChance": 8, "critDamage": 165 } },
+    { "id": "gloomo",   "name": "Gloomo",   "sprite": null, "baseStats": { "hp": 44, "atk": 10, "spAtk": 17, "def": 10, "spDef": 13, "spd": 11, "critChance": 6, "critDamage": 150 } },
+    { "id": "shimmet",  "name": "Shimmet",  "sprite": null, "baseStats": { "hp": 44, "atk": 9,  "spAtk": 16, "def": 11, "spDef": 13, "spd": 10, "critChance": 7, "critDamage": 152 } }
   ]
 }

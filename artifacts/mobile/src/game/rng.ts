@@ -30,6 +30,29 @@ export function pickOne<T>(rng: Rng, items: readonly T[]): T {
   return item;
 }
 
+/** Pick one element from a non-empty array, weighted by weightOf(item). */
+export function pickWeighted<T>(rng: Rng, items: readonly T[], weightOf: (item: T) => number): T {
+  if (items.length === 0) {
+    throw new Error('pickWeighted called with an empty array');
+  }
+  const total = items.reduce((sum, item) => sum + weightOf(item), 0);
+  if (total <= 0) {
+    throw new Error('pickWeighted requires a positive total weight');
+  }
+  let roll = rng() * total;
+  for (const item of items) {
+    roll -= weightOf(item);
+    if (roll < 0) return item;
+  }
+  // Floating-point rounding can leave roll >= 0 after the last item; fall
+  // back to it rather than leaving a (rare) hole in the distribution.
+  const last = items[items.length - 1];
+  if (last === undefined) {
+    throw new Error('pickWeighted called with an empty array');
+  }
+  return last;
+}
+
 /** Generate a unique-enough id from the rng (deterministic given the same rng state). */
 export function makeId(rng: Rng): string {
   const part = () => Math.floor(rng() * 0xffffffff).toString(36);

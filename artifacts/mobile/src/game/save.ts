@@ -3,11 +3,15 @@
  * string and back, with validation. Actual storage (AsyncStorage) happens
  * in the UI layer (src/screens/CollectionContext.tsx).
  * No React, no UI imports.
+ *
+ * Save data is versioned. Bumping SAVE_VERSION without a migration wipes
+ * every player's collection on their next update — always add a migration
+ * path in the same change that changes the Creature shape.
  */
 
-import type { Creature, Stats } from './models';
+import { STAT_KEYS, type Creature, type Stats } from './models';
 
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 interface SaveFile {
   version: number;
@@ -22,9 +26,7 @@ export function serializeCollection(collection: Creature[]): string {
 function isStats(value: unknown): value is Stats {
   if (typeof value !== 'object' || value === null) return false;
   const s = value as Record<string, unknown>;
-  return (['hp', 'atk', 'def', 'spd'] as const).every(
-    (k) => typeof s[k] === 'number' && Number.isFinite(s[k]),
-  );
+  return STAT_KEYS.every((k) => typeof s[k] === 'number' && Number.isFinite(s[k]));
 }
 
 function isCreature(value: unknown): value is Creature {
@@ -41,15 +43,92 @@ function isCreature(value: unknown): value is Creature {
     c['types'].length <= 2 &&
     c['types'].every((t) => typeof t === 'string') &&
     isStats(c['stats']) &&
+    isStats(c['statRolls']) &&
+    Array.isArray(c['parentIds']) &&
+    c['parentIds'].every((p) => typeof p === 'string')
+  );
+}
+
+// --- v1 → v2 migration -----------------------------------------------------
+// v1 creatures had only { hp, atk, def, spd } and no statRolls at all (the
+// game shipped before special stats, crit, and roll tracking existed).
+
+const V1_STAT_KEYS = ['hp', 'atk', 'def', 'spd'] as const;
+
+interface CreatureV1 {
+  id: string;
+  speciesId: string;
+  name: string;
+  tier: number;
+  types: string[];
+  stats: { hp: number; atk: number; def: number; spd: number };
+  parentIds: string[];
+}
+
+function isCreatureV1(value: unknown): value is CreatureV1 {
+  if (typeof value !== 'object' || value === null) return false;
+  const c = value as Record<string, unknown>;
+  const s = c['stats'];
+  if (typeof s !== 'object' || s === null) return false;
+  const stats = s as Record<string, unknown>;
+  return (
+    typeof c['id'] === 'string' &&
+    typeof c['speciesId'] === 'string' &&
+    typeof c['name'] === 'string' &&
+    typeof c['tier'] === 'number' &&
+    Number.isInteger(c['tier']) &&
+    Array.isArray(c['types']) &&
+    c['types'].length >= 1 &&
+    c['types'].length <= 2 &&
+    c['types'].every((t) => typeof t === 'string') &&
+    V1_STAT_KEYS.every((k) => typeof stats[k] === 'number' && Number.isFinite(stats[k])) &&
     Array.isArray(c['parentIds']) &&
     c['parentIds'].every((p) => typeof p === 'string')
   );
 }
 
 /**
- * Parse a saved string back into a collection.
- * Throws with a clear message if the data is corrupt — callers decide
- * how to surface that. Never silently returns partial data.
+ * Old saves have no data for spAtk/spDef/critChance/critDamage and no
+ * roll-quality history, so migrated creatures get reasonable neutral
+ * defaults rather than a crash or a wipe: the physical stats they already
+ * had carry over exactly, the special stats mirror the physical ones they're
+ * closest to, crit gets the same baseline every species starts with, and
+ * every roll is marked as a perfectly average (50) roll since we have no
+ * record of how good the original roll actually was.
+ */
+function migrateCreatureV1ToV2(old: CreatureV1): Creature {
+  const NEUTRAL_ROLL = 50;
+  const BASELINE_CRIT_CHANCE = 5;
+  const BASELINE_CRIT_DAMAGE = 150;
+  return {
+    id: old.id,
+    speciesId: old.speciesId,
+    name: old.name,
+    tier: old.tier,
+    types: old.types,
+    stats: {
+      hp: old.stats.hp,
+      atk: old.stats.atk,
+      spAtk: old.stats.atk,
+      def: old.stats.def,
+      spDef: old.stats.def,
+      spd: old.stats.spd,
+      critChance: BASELINE_CRIT_CHANCE,
+      critDamage: BASELINE_CRIT_DAMAGE,
+    },
+    statRolls: STAT_KEYS.reduce((rolls, key) => {
+      rolls[key] = NEUTRAL_ROLL;
+      return rolls;
+    }, {} as Stats),
+    parentIds: old.parentIds,
+  };
+}
+
+/**
+ * Parse a saved string back into a collection, migrating older save
+ * versions forward. Throws with a clear message if the data is corrupt or
+ * from a version newer than this build understands — callers decide how to
+ * surface that. Never silently returns partial data.
  */
 export function deserializeCollection(raw: string): Creature[] {
   let parsed: unknown;
@@ -62,11 +141,25 @@ export function deserializeCollection(raw: string): Creature[] {
     throw new Error('Save data has an unexpected shape');
   }
   const file = parsed as Record<string, unknown>;
-  if (file['version'] !== SAVE_VERSION) {
-    throw new Error(`Unsupported save version: ${String(file['version'])}`);
+  const version = file['version'];
+  const rawCollection = file['collection'];
+  if (!Array.isArray(rawCollection)) {
+    throw new Error('Save data has an unexpected shape');
   }
-  if (!Array.isArray(file['collection']) || !file['collection'].every(isCreature)) {
-    throw new Error('Save data contains an invalid creature');
+
+  if (version === 1) {
+    if (!rawCollection.every(isCreatureV1)) {
+      throw new Error('Save data contains an invalid creature');
+    }
+    return rawCollection.map(migrateCreatureV1ToV2);
   }
-  return file['collection'];
+
+  if (version === SAVE_VERSION) {
+    if (!rawCollection.every(isCreature)) {
+      throw new Error('Save data contains an invalid creature');
+    }
+    return rawCollection;
+  }
+
+  throw new Error(`Unsupported save version: ${String(version)}`);
 }

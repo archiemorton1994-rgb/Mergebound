@@ -3,40 +3,59 @@
  * same creature out. No React, no UI imports.
  */
 
-import { allSpecies, allTypes, balance, tierMultiplier } from './content';
-import type { Creature, Rng, Stats } from './models';
-import { makeId, pickOne } from './rng';
+import { allSpecies, allTypes, balance, tierMultiplier, typeWeight } from './content';
+import { STAT_KEYS, type Creature, type Rng, type Stats } from './models';
+import { makeId, pickOne, pickWeighted } from './rng';
 
-/** Apply the ±variance roll to a single stat value and round to an integer. */
-export function rollStat(base: number, rng: Rng, variance: number): number {
-  const factor = 1 + (rng() * 2 - 1) * variance;
-  return Math.max(1, Math.round(base * factor));
+export interface StatRollResult {
+  value: number;
+  /** 0-100: where this roll landed within its ±variance band. 100 = best possible. */
+  rollPercent: number;
 }
 
-function rollStats(base: Stats, rng: Rng, multiplier: number): Stats {
+/** Roll a single stat: apply the ±variance factor, round, floor at 1, and report the roll quality. */
+export function rollStat(base: number, rng: Rng, variance: number): StatRollResult {
+  const factor = 1 + (rng() * 2 - 1) * variance;
+  const value = Math.max(1, Math.round(base * factor));
+  const clampedFactor = Math.min(1 + variance, Math.max(1 - variance, factor));
+  const rollPercent = Math.round(((clampedFactor - (1 - variance)) / (2 * variance)) * 100);
+  return { value, rollPercent };
+}
+
+/** Roll every stat in a Stats object, returning both the values and their roll quality. */
+export function rollAllStats(
+  base: Stats,
+  rng: Rng,
+  multiplier: number,
+): { stats: Stats; statRolls: Stats } {
   const v = balance.statRollVariance;
-  return {
-    hp: rollStat(base.hp * multiplier, rng, v),
-    atk: rollStat(base.atk * multiplier, rng, v),
-    def: rollStat(base.def * multiplier, rng, v),
-    spd: rollStat(base.spd * multiplier, rng, v),
-  };
+  const stats = {} as Stats;
+  const statRolls = {} as Stats;
+  for (const key of STAT_KEYS) {
+    const { value, rollPercent } = rollStat(base[key] * multiplier, rng, v);
+    stats[key] = value;
+    statRolls[key] = rollPercent;
+  }
+  return { stats, statRolls };
 }
 
 /**
  * Hatch a single egg: tier-0 creature, random species,
- * exactly one random type, stats rolled from the species base stats.
+ * exactly one random type (weighted by rarity), stats rolled from the
+ * species base stats.
  */
 export function hatchEgg(rng: Rng): Creature {
   const species = pickOne(rng, allSpecies);
-  const type = pickOne(rng, allTypes);
+  const type = pickWeighted(rng, allTypes, typeWeight);
+  const { stats, statRolls } = rollAllStats(species.baseStats, rng, tierMultiplier(0));
   return {
     id: makeId(rng),
     speciesId: species.id,
     name: species.name,
     tier: 0,
     types: [type.id],
-    stats: rollStats(species.baseStats, rng, tierMultiplier(0)),
+    stats,
+    statRolls,
     parentIds: [],
   };
 }

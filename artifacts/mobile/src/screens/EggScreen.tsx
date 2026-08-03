@@ -17,7 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { balance, getType } from '@/src/game/content';
 import { generateEggBatch } from '@/src/game/hatch';
 import { merge } from '@/src/game/merge';
-import type { Creature, Rng } from '@/src/game/models';
+import { STAT_KEYS, type Creature, type Rng, type Stats } from '@/src/game/models';
 import { createRng } from '@/src/game/rng';
 import { CreatureCard } from '@/src/screens/CreatureCard';
 import { useCollection } from '@/src/screens/CollectionContext';
@@ -81,16 +81,15 @@ export function EggScreen() {
     setPhase('eggs');
   }
 
-  const parentAvg = useMemo(() => {
+  const parentAvg = useMemo<Stats | null>(() => {
     const [a, b] = hatched;
     if (!a || !b || !result) return null;
-    const avg = (x: number, y: number) => Math.round((x + y) / 2);
-    return {
-      hp: result.stats.hp - avg(a.stats.hp, b.stats.hp),
-      atk: result.stats.atk - avg(a.stats.atk, b.stats.atk),
-      def: result.stats.def - avg(a.stats.def, b.stats.def),
-      spd: result.stats.spd - avg(a.stats.spd, b.stats.spd),
-    };
+    const deltas = {} as Stats;
+    for (const key of STAT_KEYS) {
+      const avg = Math.round((a.stats[key] + b.stats[key]) / 2);
+      deltas[key] = result.stats[key] - avg;
+    }
+    return deltas;
   }, [hatched, result]);
 
   if (loading) {
