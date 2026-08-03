@@ -42,6 +42,22 @@ Every creature has eight stats (`STAT_KEYS` in `models.ts` is the single source 
 
 Every stat also carries a persisted **roll quality** (`statRolls`, 0-100 per stat, alongside `stats`) recording where that stat's most recent roll landed in its ±15% band — 100 is the best possible roll. This is what makes hunting a "perfect roll" a real, visible thing: a creature can have a 98 on `critChance` and a 6 on `hp` at the same time, because every stat rolls independently on every hatch or merge. `CreatureCard.tsx` colours a stat's displayed value by its roll quality (gold ≥90, dim ≤15) so this is visible without extra UI chrome.
 
+## Creature portraits
+
+Creatures are drawn as **vector art generated from their own data** — there are no image files, and there is no species artwork to go missing when a merge invents a combination nobody anticipated. Split in two, deliberately:
+
+- `src/art/creatureArt.ts` decides **what a creature looks like** — pure TypeScript, no UI imports, fully unit-tested like the game rules. Species picks the silhouette (one of eight: flame, leaf, droplet, wing, boulder, spark, wisp, crystal), the primary type's colour becomes the body, the second type's colour becomes the accent, tier adds an aura, and a near-perfect stat roll adds a sparkle.
+- `src/screens/CreatureSprite.tsx` **draws it** with `react-native-svg`, holding the path geometry for each silhouette.
+
+Keep that split. Anything that could be described as a rule ("high tiers glow", "dual types look richer") belongs in the pure module where it can be tested; only path data and SVG belong in the component.
+
+Two things that look like details but are not:
+
+- A **single-typed** creature gets a lightened version of its own colour as its accent, so a **dual-typed** creature is visibly richer. That is intentional reinforcement of merging as the way to get there.
+- The sparkle threshold is the same 90 that `CreatureCard` already uses to colour a stat gold, so a creature whose numbers are gold also visibly sparkles. Chasing perfect rolls has to be readable at a glance, not by reading eight numbers.
+
+SVG gradient ids are document-global, so `CreatureSprite` namespaces its `<Defs>` ids with the creature's id — two sprites on one screen would otherwise fight over one definition. Keep that if you add gradients.
+
 ## Type system
 
 Nine types, defined in `src/data/types.json`, each with a `rarity` (`common` | `rare` | `mythic`) that drives real hatch odds via `balance.json`'s `typeRarityWeights` (`pickWeighted` in `rng.ts`) — rare and mythic types are meaningfully harder to hatch, not just labelled differently:
@@ -96,7 +112,8 @@ Do not build ahead of this order without the owner asking for it.
 - `artifacts/mobile/` — the Expo app (the game).
   - `src/game/` — pure game logic: `models.ts` (types), `rng.ts` (seeded RNG), `content.ts` (JSON access), `hatch.ts`, `merge.ts`, `save.ts` (serialise/validate saves), `battle.ts` (party battle resolution), `encounter.ts` (enemy generation).
   - `src/data/` — species, types, moves, hybrid moves, and balance JSON.
-  - `src/screens/` — UI: `EggScreen.tsx` (slice-1 flow), `BattleScreen.tsx` (slice-2 flow), `CreatureCard.tsx` (placeholder art), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage).
+  - `src/art/` — pure, tested **visual** derivation (`creatureArt.ts`). Same no-UI-imports rule as `src/game/`; the difference is that `src/game/` decides what is *true* and `src/art/` decides what is *shown*.
+  - `src/screens/` — UI: `EggScreen.tsx` (slice-1 flow), `BattleScreen.tsx` (slice-2 flow), `CreatureCard.tsx` (portrait + stats), `CreatureSprite.tsx` (SVG creature art), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage).
   - `app/` — expo-router route files only; no logic. `index.tsx` → Hatchery, `battle.tsx` → Battle.
 - `artifacts/api-server/` — Express API scaffold. Only a `/api/healthz` endpoint so far; no game features use it yet, but it's real registered Replit deployment infrastructure (production build/run/health-check wired in its `.replit-artifact/artifact.toml`), not orphaned code — future server-authoritative features (battles, idle income, IAP validation) will likely build on it.
 - `lib/` — API workspace packages backing `api-server`: `api-spec` (OpenAPI source of truth), `api-client-react` + `api-zod` (generated — regenerate via codegen, never hand-edit), `db` (Drizzle schema, currently empty, scaffolded ahead of need).

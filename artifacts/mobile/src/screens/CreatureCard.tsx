@@ -1,11 +1,12 @@
 /**
- * Placeholder creature visual: a coloured rounded rectangle showing
- * name, tier, types and stats as text. Colour comes from the creature's
- * primary type (defined in src/data/types.json). No image assets.
+ * Creature card: vector portrait plus name, tier, types and stats.
+ * Card colour comes from the creature's primary type (src/data/types.json);
+ * the portrait itself is drawn by CreatureSprite. No image assets.
  */
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { CreatureSprite } from '@/src/screens/CreatureSprite';
 import { getType } from '@/src/game/content';
 import { PERCENT_STAT_KEYS, STAT_KEYS, type Creature, type Stats } from '@/src/game/models';
 
@@ -49,20 +50,27 @@ export function CreatureCard({ creature, deltas, compact = false }: Props) {
 
   return (
     <View style={[styles.card, { backgroundColor: primaryType.color }, compact && styles.cardCompact]}>
-      <View style={styles.headerRow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {creature.name}
-        </Text>
-        <View style={styles.tierBadge}>
-          <Text style={styles.tierText}>T{creature.tier}</Text>
+      <View style={styles.topRow}>
+        <View style={styles.spriteStage}>
+          <CreatureSprite creature={creature} size={compact ? 56 : 84} />
         </View>
-      </View>
-      <View style={styles.typeRow}>
-        {typeNames.map((n) => (
-          <View key={n} style={styles.typePill}>
-            <Text style={styles.typeText}>{n}</Text>
+        <View style={styles.identity}>
+          <View style={styles.headerRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {creature.name}
+            </Text>
+            <View style={styles.tierBadge}>
+              <Text style={styles.tierText}>T{creature.tier}</Text>
+            </View>
           </View>
-        ))}
+          <View style={styles.typeRow}>
+            {typeNames.map((n) => (
+              <View key={n} style={styles.typePill}>
+                <Text style={styles.typeText}>{n}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
       </View>
       <View style={styles.statsGrid}>
         {STAT_KEYS.map((k) => (
@@ -92,6 +100,21 @@ const styles = StyleSheet.create({
   cardCompact: {
     padding: 10,
     gap: 6,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  /** A darker panel so the portrait reads against a card of its own type colour. */
+  spriteStage: {
+    backgroundColor: 'rgba(0,0,0,0.20)',
+    borderRadius: 14,
+    padding: 3,
+  },
+  identity: {
+    flex: 1,
+    gap: 8,
   },
   headerRow: {
     flexDirection: 'row',
