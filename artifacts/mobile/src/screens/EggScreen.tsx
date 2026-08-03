@@ -4,18 +4,10 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { balance, getType } from '@/src/game/content';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { palette, radius, space } from '@/constants/tokens';
+import { AppText, Button, Screen, haptics } from '@/src/screens/ui/kit';
+import { balance } from '@/src/game/content';
 import { generateEggBatch } from '@/src/game/hatch';
 import { MERGE_PITY_THRESHOLD, mergeWithPity } from '@/src/game/merge';
 import { STAT_KEYS, type Creature, type Rng, type Stats } from '@/src/game/models';
@@ -25,14 +17,9 @@ import { useCollection } from '@/src/screens/CollectionContext';
 
 type Phase = 'eggs' | 'hatched' | 'merged';
 
-function haptic() {
-  if (Platform.OS !== 'web') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }
-}
+const haptic = haptics.press;
 
 export function EggScreen() {
-  const insets = useSafeAreaInsets();
   const { collection, mergePity, loading, loadError, addCreatures, applyMerge, setMergePity } = useCollection();
 
   // One seeded rng per session batch. Reseeding happens on "New eggs".
@@ -45,9 +32,6 @@ export function EggScreen() {
   const [hatched, setHatched] = useState<Creature[]>([]);
   const [result, setResult] = useState<Creature | null>(null);
   const [pityTriggered, setPityTriggered] = useState(false);
-
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
-  const bottomPad = (Platform.OS === 'web' ? 34 : insets.bottom) + 24;
 
   function toggleEgg(id: string) {
     haptic();
@@ -99,58 +83,59 @@ export function EggScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.mutedText}>Loading your collection…</Text>
-      </View>
+      <Screen scroll={false} contentStyle={styles.center}>
+        <AppText color={palette.textMuted}>Loading your collection…</AppText>
+      </Screen>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: bottomPad, paddingHorizontal: 16, gap: 20 }}
-    >
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Hatchery</Text>
-        <Link href="/battle" style={styles.navLink}>
-          Battle
-        </Link>
-      </View>
+    <Screen>
+      <AppText variant="display">Hatchery</AppText>
+
       {loadError ? (
         <View style={styles.errorBox}>
-          <Text style={styles.errorText}>Couldn't load saved data: {loadError}</Text>
+          <AppText variant="bodyStrong" color={palette.danger}>
+            Couldn&apos;t load saved data: {loadError}
+          </AppText>
         </View>
       ) : null}
 
       {phase === 'eggs' ? (
-        <View style={{ gap: 12 }}>
-          <Text style={styles.sectionLabel}>
-            Pick two of {balance.eggsPerBatch} eggs to hatch
-          </Text>
+        <View style={{ gap: space.md }}>
+          <AppText variant="heading">Pick two of {balance.eggsPerBatch} eggs to hatch</AppText>
           <View style={styles.eggGrid}>
             {eggs.map((egg) => {
               const isSelected = selected.includes(egg.id);
-              const color = getType(egg.types[0] ?? 'ember').color;
               return (
                 <Pressable
                   key={egg.id}
                   onPress={() => toggleEgg(egg.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={isSelected ? 'Selected egg' : 'Mystery egg'}
                   style={({ pressed }) => [
                     styles.egg,
-                    { borderColor: color },
-                    isSelected && { backgroundColor: color },
+                    isSelected && styles.eggSelected,
                     pressed && styles.pressed,
                   ]}
                 >
-                  <View style={[styles.eggShape, { backgroundColor: isSelected ? 'rgba(255,255,255,0.35)' : color }]} />
-                  <Text style={[styles.eggLabel, isSelected && styles.eggLabelSelected]}>
+                  {/* Every egg looks identical on purpose. Painting it in the
+                      colour of the type inside gives the answer away before the
+                      player has chosen, which throws away the best moment the
+                      game has. The reveal has to be a reveal. */}
+                  <View style={[styles.eggShape, isSelected && styles.eggShapeSelected]} />
+                  <AppText
+                    variant={isSelected ? 'bodyStrong' : 'body'}
+                    color={isSelected ? palette.text : palette.textSecondary}
+                  >
                     {isSelected ? 'Selected' : 'Mystery egg'}
-                  </Text>
+                  </AppText>
                 </Pressable>
               );
             })}
           </View>
-          <PrimaryButton
+          <Button
             label={selected.length === 2 ? 'Hatch both eggs' : `Select ${2 - selected.length} more`}
             disabled={selected.length !== 2}
             onPress={hatchSelected}
@@ -159,47 +144,49 @@ export function EggScreen() {
       ) : null}
 
       {phase === 'hatched' ? (
-        <View style={{ gap: 12 }}>
-          <Text style={styles.sectionLabel}>They hatched!</Text>
+        <View style={{ gap: space.md }}>
+          <AppText variant="heading">They hatched!</AppText>
           {hatched.map((c) => (
             <CreatureCard key={c.id} creature={c} />
           ))}
-          <Text style={styles.pityText}>
+          <AppText variant="caption" color={palette.perfect} style={styles.centreText}>
             {mergePity + 1 >= MERGE_PITY_THRESHOLD
               ? 'This merge is guaranteed a perfect roll!'
               : `${MERGE_PITY_THRESHOLD - mergePity - 1} more merge${MERGE_PITY_THRESHOLD - mergePity - 1 === 1 ? '' : 's'} until a guaranteed perfect roll`}
-          </Text>
-          <PrimaryButton label="Merge these two" onPress={doMerge} />
+          </AppText>
+          <Button label="Merge these two" onPress={doMerge} />
         </View>
       ) : null}
 
       {phase === 'merged' && result ? (
-        <View style={{ gap: 12 }}>
-          <Text style={styles.sectionLabel}>Merge result</Text>
+        <View style={{ gap: space.md }}>
+          <AppText variant="heading">Merge result</AppText>
           {pityTriggered ? (
             <View style={styles.pityBanner}>
-              <Text style={styles.pityBannerText}>Perfect roll guaranteed! ✦</Text>
+              <AppText variant="bodyStrong" color={palette.perfect}>
+                Perfect roll guaranteed! ✦
+              </AppText>
             </View>
           ) : null}
           <CreatureCard creature={result} deltas={parentAvg ?? undefined} />
-          <Text style={styles.mutedText}>
+          <AppText variant="caption" color={palette.textMuted}>
             Stat changes shown against the average of its two parents. Both parents were
             consumed; the result is in your collection.
-          </Text>
-          <Text style={styles.sectionLabel}>Its parents were</Text>
+          </AppText>
+          <AppText variant="heading">Its parents were</AppText>
           {hatched.map((c) => (
             <CreatureCard key={c.id} creature={c} compact />
           ))}
-          <PrimaryButton label="New eggs" onPress={newBatch} />
+          <Button label="New eggs" onPress={newBatch} />
         </View>
       ) : null}
 
-      <View style={{ gap: 10 }}>
-        <Text style={styles.sectionLabel}>Collection ({collection.length})</Text>
+      <View style={{ gap: space.sm }}>
+        <AppText variant="heading">Collection ({collection.length})</AppText>
         {collection.length === 0 ? (
-          <Text style={styles.mutedText}>
+          <AppText variant="body" color={palette.textMuted}>
             No creatures yet. Hatch and merge to start your collection.
-          </Text>
+          </AppText>
         ) : (
           collection
             .slice()
@@ -207,146 +194,65 @@ export function EggScreen() {
             .map((c) => <CreatureCard key={c.id} creature={c} compact />)
         )}
       </View>
-    </ScrollView>
-  );
-}
-
-function PrimaryButton({
-  label,
-  onPress,
-  disabled = false,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.button,
-        disabled && styles.buttonDisabled,
-        pressed && !disabled && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.buttonText, disabled && styles.buttonTextDisabled]}>{label}</Text>
-    </Pressable>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#151322',
-  },
   center: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  title: {
-    color: '#ffffff',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 28,
-  },
-  navLink: {
-    color: '#7C5CFF',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
-  },
-  sectionLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-  },
-  mutedText: {
-    color: 'rgba(255,255,255,0.55)',
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-    lineHeight: 19,
+  centreText: {
+    textAlign: 'center',
   },
   eggGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: space.md,
   },
   egg: {
     width: '47%',
     flexGrow: 1,
     borderWidth: 2,
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderColor: palette.border,
+    borderRadius: radius.lg,
+    paddingVertical: space.lg,
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    gap: space.sm,
+    backgroundColor: palette.surfaceRaised,
+  },
+  eggSelected: {
+    borderColor: palette.interactive,
+    backgroundColor: 'rgba(155,130,255,0.16)',
   },
   eggShape: {
     width: 44,
     height: 56,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.borderStrong,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
   },
-  eggLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-  },
-  eggLabelSelected: {
-    color: '#ffffff',
-    fontFamily: 'Inter_700Bold',
-  },
-  button: {
-    backgroundColor: '#7C5CFF',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-  },
-  buttonTextDisabled: {
-    color: 'rgba(255,255,255,0.4)',
+  eggShapeSelected: {
+    backgroundColor: palette.interactive,
+    borderColor: palette.interactive,
   },
   errorBox: {
-    backgroundColor: 'rgba(239,68,68,0.18)',
-    borderRadius: 10,
-    padding: 10,
-  },
-  errorText: {
-    color: '#ffb4b4',
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
+    backgroundColor: 'rgba(255,107,107,0.16)',
+    borderRadius: radius.sm,
+    padding: space.md,
   },
   pressed: {
     opacity: 0.8,
   },
-  pityText: {
-    color: '#ffd966',
-    fontFamily: 'Inter_500Medium',
-    fontSize: 12,
-    textAlign: 'center',
-  },
   pityBanner: {
-    backgroundColor: 'rgba(255,217,102,0.18)',
-    borderRadius: 10,
-    paddingVertical: 8,
+    backgroundColor: 'rgba(255,217,102,0.16)',
+    borderRadius: radius.sm,
+    paddingVertical: space.sm,
     alignItems: 'center',
-  },
-  pityBannerText: {
-    color: '#ffd966',
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
   },
 });

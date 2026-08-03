@@ -1,59 +1,66 @@
 /**
- * Semantic design tokens for the mobile app.
+ * Semantic colour tokens, derived from the game's design tokens.
  *
- * These tokens mirror the naming conventions used in web artifacts (index.css)
- * so that multi-artifact projects share a cohesive visual identity.
+ * The real source of truth is constants/tokens.ts. This file exists because the
+ * scaffolding screens (components/ErrorFallback.tsx, app/+not-found.tsx) and the
+ * useColors() hook were written against this shape — and, until now, against a
+ * LIGHT placeholder palette, which is why an error in a dark game rendered a
+ * white screen that looked like a different app entirely.
  *
- * Replace the placeholder values below with values that match the project's
- * brand. If a sibling web artifact exists, read its index.css and convert the
- * HSL values to hex so both artifacts use the same palette.
- *
- * To add dark mode, add a `dark` key with the same token names.
- * The useColors() hook will automatically pick it up.
+ * Mapping them onto the real palette here fixes those screens without having to
+ * rewrite them. Add new colours to tokens.ts, not here.
  */
 
+import { palette, radius as radiusTokens } from './tokens';
+
+const dark = {
+  // Legacy aliases (kept for backward compatibility)
+  text: palette.text,
+  tint: palette.interactive,
+
+  // Core surfaces
+  background: palette.background,
+  foreground: palette.text,
+
+  // Cards / elevated surfaces
+  card: palette.surfaceRaised,
+  cardForeground: palette.text,
+
+  // Primary action colour (buttons, links, active states)
+  primary: palette.interactive,
+  primaryForeground: palette.text,
+
+  // Secondary / less-emphasis interactive surfaces
+  secondary: palette.surface,
+  secondaryForeground: palette.textSecondary,
+
+  // Muted / subdued elements (dividers, timestamps, placeholders)
+  muted: palette.surface,
+  mutedForeground: palette.textMuted,
+
+  // Accent highlights (badges, selected items, focus rings)
+  accent: palette.surfaceRaised,
+  accentForeground: palette.text,
+
+  // Destructive actions (delete, error states)
+  destructive: palette.danger,
+  destructiveForeground: palette.text,
+
+  // Borders and input outlines
+  border: palette.border,
+  input: palette.borderStrong,
+};
+
+/**
+ * MergeBound is a dark game everywhere, deliberately — the creature portraits
+ * and the perfect-roll gold are both built to glow against a dark surface, and
+ * neither works on white. Both keys resolve to the same palette so a device in
+ * light mode still gets the game rather than a washed-out version of it.
+ */
 const colors = {
-  light: {
-    // Legacy aliases (kept for backward compatibility)
-    text: '#0a0a0a',
-    tint: '#2f95dc',
-
-    // Core surfaces
-    background: '#ffffff',
-    foreground: '#0a0a0a',
-
-    // Cards / elevated surfaces
-    card: '#f9f9f9',
-    cardForeground: '#0a0a0a',
-
-    // Primary action color (buttons, links, active states)
-    primary: '#2f95dc',
-    primaryForeground: '#ffffff',
-
-    // Secondary / less-emphasis interactive surfaces
-    secondary: '#f0f0f0',
-    secondaryForeground: '#1a1a1a',
-
-    // Muted / subdued elements (dividers, timestamps, placeholders)
-    muted: '#f0f0f0',
-    mutedForeground: '#737373',
-
-    // Accent highlights (badges, selected items, focus rings)
-    accent: '#f0f0f0',
-    accentForeground: '#1a1a1a',
-
-    // Destructive actions (delete, error states)
-    destructive: '#ef4444',
-    destructiveForeground: '#ffffff',
-
-    // Borders and input outlines
-    border: '#e5e5e5',
-    input: '#e5e5e5',
-  },
-
-  // Border radius (in px). Sync from the sibling web artifact's --radius
-  // CSS variable. This value applies to cards, buttons, inputs, and modals.
-  radius: 8,
+  light: dark,
+  dark,
+  radius: radiusTokens.lg,
 };
 
 export default colors;

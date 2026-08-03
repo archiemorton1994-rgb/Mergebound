@@ -6,9 +6,13 @@
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { palette } from '@/constants/tokens';
 import { CreatureSprite } from '@/src/screens/CreatureSprite';
-import { getType } from '@/src/game/content';
+import { balance, getType } from '@/src/game/content';
 import { PERCENT_STAT_KEYS, STAT_KEYS, type Creature, type Stats } from '@/src/game/models';
+
+/** Below this, a roll is dimmed rather than shown in full white — purely presentational. */
+const DIM_ROLL_THRESHOLD = 15;
 
 interface Props {
   creature: Creature;
@@ -37,11 +41,16 @@ function formatStat(key: (typeof STAT_KEYS)[number], value: number): string {
  * visibly pops even in the compact collection list — this is the whole
  * point of tracking statRolls: "perfect rolls" need to be visible to be
  * worth chasing.
+ *
+ * The threshold and the gold both come from shared sources rather than being
+ * typed here: creatureArt.ts adds a sparkle at the same threshold, so if the
+ * two ever disagreed a creature could show gold numbers without sparkling, or
+ * the reverse. One number, one colour, read in both places.
  */
 function rollColor(rollPercent: number): string {
-  if (rollPercent >= 90) return '#ffd966';
-  if (rollPercent <= 15) return 'rgba(255,255,255,0.45)';
-  return '#ffffff';
+  if (rollPercent >= balance.reveal.gold) return palette.perfect;
+  if (rollPercent <= DIM_ROLL_THRESHOLD) return palette.textMuted;
+  return palette.text;
 }
 
 export function CreatureCard({ creature, deltas, compact = false }: Props) {

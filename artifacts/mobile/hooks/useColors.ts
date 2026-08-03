@@ -1,23 +1,19 @@
-import { useColorScheme } from 'react-native';
 import colors from '@/constants/colors';
 
 /**
- * Returns the design tokens for the current color scheme.
+ * Returns the semantic colour tokens for the app.
  *
- * The returned object contains all color tokens for the active palette
- * plus scheme-independent values like `radius`.
+ * MergeBound is a dark game everywhere, deliberately: the creature portraits
+ * and the perfect-roll gold are both built to glow against a dark surface and
+ * neither reads on white. So this no longer branches on the device's light or
+ * dark setting — constants/colors.ts resolves both keys to the same palette, and
+ * a phone in light mode still gets the game rather than a washed-out version of
+ * it.
  *
- * Falls back to the light palette when no dark key is defined in
- * constants/colors.ts (the scaffold ships light-only by default).
- * When a sibling web artifact's dark tokens are synced into a `dark`
- * key, this hook will automatically switch palettes based on the
- * device's appearance setting.
+ * New colours belong in constants/tokens.ts, which is the real source of truth.
+ * This hook exists for the scaffolding screens that were written against the
+ * older shape.
  */
 export function useColors() {
-  const scheme = useColorScheme();
-  const palette =
-    scheme === 'dark' && 'dark' in colors
-      ? (colors as Record<string, typeof colors.light>).dark
-      : colors.light;
-  return { ...palette, radius: colors.radius };
+  return { ...colors.dark, radius: colors.radius };
 }

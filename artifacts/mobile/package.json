@@ -56,5 +56,8 @@
     "vitest": "^4.0.18",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
+  },
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.18.14"
   }
 }

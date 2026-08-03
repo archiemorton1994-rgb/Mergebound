@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { palette } from '@/constants/tokens';
 import { CollectionProvider } from '@/src/screens/CollectionContext';
 import {
   Inter_400Regular,
@@ -22,9 +23,18 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="battle" />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: palette.background },
+      }}
+    >
+      {/* The tab shell owns Home and the Hatchery, and carries the currency HUD. */}
+      <Stack.Screen name="(tabs)" />
+      {/* Battle sits OUTSIDE the tabs on purpose: a fight should hold the whole
+          screen, and letting someone tab away mid-battle would mean deciding
+          what happens to the battle they abandoned. */}
+      <Stack.Screen name="battle" options={{ animation: 'fade' }} />
     </Stack>
   );
 }
