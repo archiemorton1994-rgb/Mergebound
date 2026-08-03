@@ -3,10 +3,47 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { allSpecies, allTypes, balance, getSpecies, typeWeight } from '../content';
-import { generateEggBatch, hatchEgg, rollStat } from '../hatch';
+import {
+  allSpecies,
+  allTypes,
+  balance,
+  cumulativeStatMultiplier,
+  getSpecies,
+  typeWeight,
+} from '../content';
+import { generateEggBatch, hatchEgg, rollAllStats, rollStat } from '../hatch';
 import { STAT_KEYS } from '../models';
 import { createRng } from '../rng';
+import { defaultStats } from './helpers';
+
+describe('rollAllStats: percentage stats never grow with tier', () => {
+  it('leaves critical-hit chance and damage untouched however high the tier multiplier goes', () => {
+    // Crit chance is odds and crit damage is a ratio — neither is an amount, so
+    // neither may take the tier multiplier. Left scaling, a tier-4 creature
+    // passes 100% crit chance and criticals on literally every hit, and a
+    // tier-6 one hits for roughly 4400x normal damage. That shipped once.
+    const base = { ...defaultStats, critChance: 6, critDamage: 150 };
+    const midpointRoll = () => 0.5; // exact centre of the variance band, factor 1
+
+    for (const multiplier of [1, cumulativeStatMultiplier(3), cumulativeStatMultiplier(6)]) {
+      const { stats } = rollAllStats(base, midpointRoll, multiplier);
+      expect(stats.critChance, `multiplier ${multiplier}`).toBe(base.critChance);
+      expect(stats.critDamage, `multiplier ${multiplier}`).toBe(base.critDamage);
+      // ...while ordinary magnitude stats still scale exactly as before.
+      expect(stats.hp, `multiplier ${multiplier}`).toBe(Math.round(base.hp * multiplier));
+      expect(stats.atk, `multiplier ${multiplier}`).toBe(Math.round(base.atk * multiplier));
+    }
+  });
+
+  it('keeps critical-hit chance a real chance at every tier a player can reach', () => {
+    for (let tier = 0; tier <= 8; tier++) {
+      for (const species of allSpecies) {
+        const { stats } = rollAllStats(species.baseStats, () => 1, cumulativeStatMultiplier(tier));
+        expect(stats.critChance, `${species.name} at tier ${tier}`).toBeLessThan(100);
+      }
+    }
+  });
+});
 
 describe('hatching an egg', () => {
   it('always produces a tier-0 creature', () => {

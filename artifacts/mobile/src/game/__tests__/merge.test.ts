@@ -24,7 +24,7 @@ import {
   mergedTier,
   mergedTypes,
 } from '../merge';
-import { STAT_KEYS } from '../models';
+import { PERCENT_STAT_KEYS, STAT_KEYS } from '../models';
 import { createRng } from '../rng';
 import { makeCreature } from './helpers';
 
@@ -87,6 +87,47 @@ describe('merge: type rule', () => {
 });
 
 describe('merge: stat rule — same-tier merge (tier increases)', () => {
+  it('a free merge never moves the perfect-roll countdown', () => {
+    // Tier-0 merges cost nothing and eggs are unlimited, so if free merges
+    // counted, a player could farm the countdown to a guaranteed perfect roll
+    // for nothing — and since gems buy gold and gold buys merge stones, money
+    // would speed that up. That would be money buying a BETTER outcome, which
+    // is the one thing the design forbids.
+    const a = makeCreature({ tier: 0 });
+    const b = makeCreature({ tier: 0 });
+    const rng = createRng(4);
+    let pity = 0;
+
+    for (let i = 0; i < 100; i++) {
+      const result = mergeWithPity(a, b, rng, pity);
+      pity = result.mergesSincePerfectRoll;
+      expect(result.pityTriggered, `merge ${i} should never trigger pity`).toBe(false);
+    }
+    expect(pity).toBe(0);
+  });
+
+  it('a merge that costs merge stones does move the countdown', () => {
+    const a = makeCreature({ tier: 1 });
+    const b = makeCreature({ tier: 1 });
+    const { mergesSincePerfectRoll } = mergeWithPity(a, b, createRng(11), 0);
+    // Either it advanced, or a natural perfect roll reset it — both are the
+    // system working. What must never happen is it standing still.
+    expect([0, 1]).toContain(mergesSincePerfectRoll);
+  });
+
+  it('reaches a guaranteed perfect roll after ten merges that were paid for', () => {
+    const a = makeCreature({ tier: 2 });
+    const b = makeCreature({ tier: 2 });
+    const { pityTriggered, creature } = mergeWithPity(
+      a,
+      b,
+      createRng(7),
+      MERGE_PITY_THRESHOLD - 1,
+    );
+    expect(pityTriggered).toBe(true);
+    expect(hasNaturalPerfectRoll(creature)).toBe(true);
+  });
+
   it('every stat lands within ±15% of (parent average × tier multiplier), across 200 seeds', () => {
     const a = makeCreature({
       tier: 1,
@@ -103,7 +144,10 @@ describe('merge: stat rule — same-tier merge (tier increases)', () => {
     for (let seed = 1; seed <= 200; seed++) {
       const { stats } = mergedStats(a, b, tier, createRng(seed));
       for (const k of STAT_KEYS) {
-        const base = ((a.stats[k] + b.stats[k]) / 2) * mult;
+        // Percentage stats (crit chance/damage) deliberately never take the tier
+        // multiplier — they are odds and ratios, not amounts. See rollAllStats.
+        const keyMult = PERCENT_STAT_KEYS.includes(k) ? 1 : mult;
+        const base = ((a.stats[k] + b.stats[k]) / 2) * keyMult;
         const min = Math.max(1, Math.floor(base * (1 - balance.statRollVariance)));
         const max = Math.ceil(base * (1 + balance.statRollVariance));
         expect(stats[k], `${k} out of range for seed ${seed}`).toBeGreaterThanOrEqual(min);
@@ -302,16 +346,26 @@ describe('merge: forced perfect stat (the mechanism the pity system uses)', () =
 });
 
 describe('mergeWithPity: guaranteed perfect roll', () => {
+  // These all use tier-1 parents deliberately. A tier-0 merge is free, and free
+  // merges are invisible to the countdown entirely — see the tests above for
+  // why that has to be true.
+  const paidParent = () => makeCreature({ tier: 1 });
+
   it('below the threshold, the counter just increments and nothing is forced', () => {
     const midpointRng = () => 0.5; // exact midpoint of the variance band -> rollPercent 50 always
-    const result = mergeWithPity(makeCreature(), makeCreature(), midpointRng, 3);
+    const result = mergeWithPity(paidParent(), paidParent(), midpointRng, 3);
     expect(result.pityTriggered).toBe(false);
     expect(result.mergesSincePerfectRoll).toBe(4);
     expect(hasNaturalPerfectRoll(result.creature)).toBe(false);
   });
 
   it('forces a perfect roll once the threshold is reached, and resets the counter', () => {
-    const result = mergeWithPity(makeCreature(), makeCreature(), createRng(1), MERGE_PITY_THRESHOLD - 1);
+    const result = mergeWithPity(
+      paidParent(),
+      paidParent(),
+      createRng(1),
+      MERGE_PITY_THRESHOLD - 1,
+    );
     expect(result.pityTriggered).toBe(true);
     expect(result.mergesSincePerfectRoll).toBe(0);
     expect(hasNaturalPerfectRoll(result.creature)).toBe(true);
@@ -319,15 +373,15 @@ describe('mergeWithPity: guaranteed perfect roll', () => {
 
   it('a natural perfect roll resets the counter early, without counting as pity', () => {
     const maxRng = () => 1; // pushes every stat's roll factor to the top of the band
-    const result = mergeWithPity(makeCreature(), makeCreature(), maxRng, 2);
+    const result = mergeWithPity(paidParent(), paidParent(), maxRng, 2);
     expect(result.pityTriggered).toBe(false);
     expect(hasNaturalPerfectRoll(result.creature)).toBe(true);
     expect(result.mergesSincePerfectRoll).toBe(0);
   });
 
   it('is deterministic given the same parents, rng seed and pity count', () => {
-    const a = makeCreature();
-    const b = makeCreature();
+    const a = paidParent();
+    const b = paidParent();
     const r1 = mergeWithPity(a, b, createRng(5), 3);
     const r2 = mergeWithPity(a, b, createRng(5), 3);
     expect(r1).toEqual(r2);

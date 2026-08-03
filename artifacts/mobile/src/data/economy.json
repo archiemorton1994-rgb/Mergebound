@@ -1,0 +1,61 @@
+{
+  "comment": "Every currency number in MergeBound. Read ONLY through content.ts's `economy` — never hardcode one of these in code. Three rules hold the whole economy together: (1) every gold payout scales on cumulativeStatMultiplier — the honest from-tier-0 power number — so battle gold, idle gold and enemy strength grow in lockstep forever; (2) merge stone COSTS scale with tier but stone SUPPLY is capped per day, and that cap is the meter on everything else; (3) anything derived from the device clock may only ever pay GOLD, never stones, gems or eggs. Rule 3 is what keeps a clock-tamperer from buying outcomes.",
+
+  "startingWallet": {
+    "comment": "What a brand-new player begins with, and what an existing save is granted when it migrates onto the currency system. Enough to reach the first real decision without ever hitting a wall.",
+    "gold": 250,
+    "mergeStones": 10,
+    "gems": 25
+  },
+
+  "merge": {
+    "comment": "Stones per merge, indexed by the tier of the STRONGER parent. Index 0 is free FOREVER — eggs are free and unlimited, so a player with an empty wallet can always make tier-1 creatures. That is the structural guarantee that nobody can ever be hard-walled out of the core loop. Cross-tier merges cost half (rounded up) because they already pay in diluted stats: cross-tier merging is the type-reroll tool, and charging it full price would punish it twice. Total stones to build one creature from tier-0s: tier 3 = 5, tier 4 = 18, tier 5 = 56, tier 6 = 162.",
+    "stoneCostByInputTier": [0, 1, 3, 8, 20, 50, 125, 300],
+    "crossTierCostFraction": 0.5
+  },
+
+  "battleRewards": {
+    "comment": "gold = round(goldPerEnemyPerPowerUnit * cumulativeStatMultiplier(enemyTier) * SUM of each defeated enemy's powerScale * starGoldMultipliers[stars] * repeatDecay). Including powerScale is what stops an early 3-enemy stage strictly dominating a later one, and what makes a solo boss pay properly. Index 0 of starGoldMultipliers is the losing consolation, deliberately set BELOW a floored 1-star win (1.0 * 0.2 = 0.20) so that deliberately losing is always strictly worse than winning.",
+    "goldPerEnemyPerPowerUnit": 9,
+    "starGoldMultipliers": [0.1, 1.0, 1.15, 1.35],
+    "starMergeStones": [0, 1, 2, 3],
+    "minStonesPerWin": 1,
+    "firstClearGoldMultiplier": 3,
+    "repeatDecayComment": "Multiplier on gold AND stones for repeat ATTEMPTS — wins and losses alike — on one stage within one day. Counting attempts rather than clears is deliberate: counting clears would let a player farm by losing. First-clear bonuses are one-time and never decay.",
+    "repeatDecayPerAttempt": 0.7,
+    "repeatRewardFloor": 0.2
+  },
+
+  "dailyCaps": {
+    "comment": "The meter on the entire economy, keyed to a day index that never runs backwards however the device clock is set. Total merge stone supply is at most 90 a day for everyone, so a tier-6 creature takes at least two real days for anybody — spender, grinder or cheat alike. Money can buy speed up to these ceilings; it can never raise them. This single pair of numbers is what bounds every currency exploit at once.",
+    "stonesEarned": 60,
+    "stonesPurchased": 30
+  },
+
+  "idle": {
+    "comment": "Only the strongest rosterSize creatures earn, so hoarding weak creatures is worth nothing and merging always raises income. GOLD ONLY, deliberately — idle is the one clock-derived faucet, and clock-derived income must never pay anything that guarantees an outcome. goldPerHour = goldPerHourPerPowerUnit * sum of cumulativeStatMultiplier(tier) across the earning roster. Six tier-1s earn 108/hour; six tier-3s earn 760/hour. Eight hours banks roughly 8-10 merge stones' worth of gold at every tier.",
+    "rosterSize": 6,
+    "goldPerHourPerPowerUnit": 12,
+    "offlineCapHours": 8,
+    "minCollectMinutes": 1
+  },
+
+  "exchange": {
+    "comment": "Gold to merge stones. price = round(baseGoldPerStone * cumulativeStatMultiplier(your highest tier) * priceGrowth ^ stones bought today). Anchoring on the player's own highest tier makes the price tier-invariant in BATTLES per stone forever: the first stone each day always costs about two battles and the thirtieth about nine, at tier 1 and at tier 6 alike. The escalator resets with the day, and the day never runs backwards, so it cannot be forged.",
+    "baseGoldPerStone": 60,
+    "priceGrowth": 1.06
+  },
+
+  "gemSources": {
+    "comment": "One-time only. No repeatable action anywhere in the game pays gems — that is what stops gems becoming a grindable path to gold and then to stones.",
+    "stageFirstClearThreeStars": 2,
+    "bossFirstClear": 10,
+    "regionFullyMastered": 30
+  },
+
+  "gemSinks": {
+    "comment": "Gems buy TIME (gold) and VANITY (cosmetics). A gem may NEVER touch a stat roll, a type, or the pity counter. Gem-bought gold scales on the player's highest tier so it stays meaningful late. REJECTED and recorded here so they are not re-proposed: gems buying merge stones directly, gems buying eggs, gems buying idle roster slots — each of those turns money into better outcomes rather than faster ones.",
+    "goldPerGem": 120,
+    "cosmeticPriceBands": { "common": 80, "rare": 250, "legendary": 700 }
+  }
+}

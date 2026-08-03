@@ -21,14 +21,14 @@
  * recomputed each round.
  */
 
-import { effectivenessForMove, movesForCreature } from './content';
+import { cumulativeStatMultiplier, effectivenessForMove, movesForCreature } from './content';
 import { balance } from './content';
 import type { Creature, DamageMove, DrainMove, HealMove, HybridMove, MoveDef, Rng } from './models';
 
 /** How low an ally's HP must drop (as a fraction of max) before the AI prioritises healing. */
-const EMERGENCY_HEAL_THRESHOLD = 0.5;
+const EMERGENCY_HEAL_THRESHOLD = balance.emergencyHealThreshold;
 /** Safety valve against an endless stalemate (e.g. two healers with no way to finish each other). */
-const MAX_ROUNDS = 50;
+const MAX_ROUNDS = balance.maxBattleRounds;
 
 export type Side = 'player' | 'enemy';
 
@@ -80,7 +80,20 @@ function hpRatio(c: Combatant): number {
   return c.currentHp / c.creature.stats.hp;
 }
 
-/** Physical uses atk vs def; special uses spAtk vs spDef. Type effectiveness, crit, and a small combat roll all apply. */
+/**
+ * Physical uses atk vs def; special uses spAtk vs spDef. Type effectiveness,
+ * crit, and a small combat roll all apply.
+ *
+ * Note the cumulativeStatMultiplier(attacker.tier) term. Without it, damage does
+ * not grow with tier at all: raw damage is power x (attack / defence), and in an
+ * evenly matched fight both of those stats carry the same tier multiplier, so it
+ * cancels — while HP keeps growing to ~2800x by tier 6. That is not a small
+ * imbalance, it is a broken game: a tier-6 mirror match needed over 1500 hits
+ * against a 50-round cap, so it could only ever end in a draw. Scaling damage by
+ * the attacker's own cumulative multiplier restores the intent, and makes a fair
+ * fight take a similar number of hits at every tier. A tier gap still decides a
+ * fight decisively, which is the point of tiers.
+ */
 export function computeDamage(
   attacker: Creature,
   defender: Creature,
@@ -89,7 +102,11 @@ export function computeDamage(
 ): { damage: number; crit: boolean } {
   const atkStat = move.category === 'physical' ? attacker.stats.atk : attacker.stats.spAtk;
   const defStat = move.category === 'physical' ? defender.stats.def : defender.stats.spDef;
-  const raw = move.power * (atkStat / defStat);
+  const raw =
+    move.power *
+    balance.damagePowerScale *
+    cumulativeStatMultiplier(attacker.tier) *
+    (atkStat / defStat);
   const typeMult = effectivenessForMove(move, defender.types);
   const crit = rng() < attacker.stats.critChance / 100;
   const critMult = crit ? attacker.stats.critDamage / 100 : 1;
@@ -261,11 +278,30 @@ function beginRound(state: BattleState): void {
     .sort((a, b) => b.creature.stats.spd - a.creature.stats.spd);
 }
 
-/** Whoever should act next, or undefined if nobody's left alive to act this round. */
+/**
+ * Whoever should act next, or undefined once the battle is over.
+ *
+ * A round's turn order is fixed when the round begins, so a combatant killed
+ * partway through the round is still sitting in the queue. Those are skipped —
+ * and if skipping them empties the round, the next round starts here rather
+ * than leaving the caller stuck. That last part is not a nicety: if every
+ * remaining entry is dead while both sides still have someone alive, this used
+ * to return undefined, which makes takeTurn/takeAutoTurn a no-op and never
+ * advances the round — so runBattle's loop spun forever and the MAX_ROUNDS
+ * safety valve could never fire. Two sides trading kills on each other's
+ * not-yet-acted creature in the same round is enough to hit it.
+ *
+ * Terminates because every pass either returns an actor or advances the round,
+ * and isBattleOver is true once the round cap is reached with an empty queue.
+ */
 export function currentActor(state: BattleState): Combatant | undefined {
-  if (isBattleOver(state)) return undefined;
-  if (state.pendingTurnOrder.length === 0) beginRound(state);
-  return state.pendingTurnOrder.find((c) => c.currentHp > 0);
+  for (;;) {
+    if (isBattleOver(state)) return undefined;
+    if (state.pendingTurnOrder.length === 0) beginRound(state);
+    const actor = state.pendingTurnOrder.find((c) => c.currentHp > 0);
+    if (actor) return actor;
+    state.pendingTurnOrder = [];
+  }
 }
 
 /**

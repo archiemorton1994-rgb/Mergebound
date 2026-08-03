@@ -4,13 +4,21 @@
  */
 
 import { getSpecies, tierMultiplier } from './content';
+import { mergeAdvancesPity } from './economy';
 import { rollStat } from './hatch';
 import { balance } from './content';
-import { STAT_KEYS, type Creature, type Rng, type Stats, type StatKey } from './models';
+import {
+  PERCENT_STAT_KEYS,
+  STAT_KEYS,
+  type Creature,
+  type Rng,
+  type Stats,
+  type StatKey,
+} from './models';
 import { makeId, pickOne } from './rng';
 
 /** How many merges without a natural perfect roll before one is forced. See mergeWithPity below. */
-export const MERGE_PITY_THRESHOLD = 10;
+export const MERGE_PITY_THRESHOLD = balance.mergePityThreshold;
 
 /**
  * Decide which parent is "dominant" (the higher-tier parent).
@@ -67,12 +75,15 @@ export function mergedStats(
   const statRolls = {} as Stats;
   for (const key of STAT_KEYS) {
     const avg = (a.stats[key] + b.stats[key]) / 2;
+    // Percentage stats (crit chance/damage) never take the tier multiplier —
+    // they are odds and ratios, not amounts. See rollAllStats in hatch.ts.
+    const keyMult = PERCENT_STAT_KEYS.includes(key) ? 1 : mult;
     if (key === forcedPerfectStat) {
-      stats[key] = Math.max(1, Math.round(avg * mult * (1 + v)));
+      stats[key] = Math.max(1, Math.round(avg * keyMult * (1 + v)));
       statRolls[key] = 100;
       continue;
     }
-    const { value, rollPercent } = rollStat(avg * mult, rng, v);
+    const { value, rollPercent } = rollStat(avg * keyMult, rng, v);
     stats[key] = value;
     statRolls[key] = rollPercent;
   }
@@ -127,6 +138,22 @@ export function mergeWithPity(
   rng: Rng,
   mergesSincePerfectRoll: number,
 ): MergeWithPityResult {
+  // A merge that costs nothing is invisible to the countdown: it cannot trigger
+  // pity, cannot advance it, and cannot reset it. Tier-0 merges are free and
+  // eggs are unlimited, so without this a player could farm free merges to
+  // force a guaranteed perfect roll — and because gems buy gold and gold buys
+  // merge stones, real money would speed that up. That would make money buy a
+  // BETTER outcome rather than a faster one, which is the one line DESIGN.md
+  // forbids crossing. Defined as "did it cost stones" rather than "is it tier
+  // 0" so the rule and the price list can never disagree.
+  if (!mergeAdvancesPity(a, b)) {
+    return {
+      creature: merge(a, b, rng),
+      mergesSincePerfectRoll,
+      pityTriggered: false,
+    };
+  }
+
   const pityTriggered = mergesSincePerfectRoll + 1 >= MERGE_PITY_THRESHOLD;
   const forcedStat = pityTriggered ? pickOne(rng, STAT_KEYS) : undefined;
   const creature = merge(a, b, rng, forcedStat);

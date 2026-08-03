@@ -1,0 +1,80 @@
+{
+  "comment": "The Binder is the player's own character: visible, customisable, and never a combatant (see DESIGN.md). Appearance is PRESET-BASED rather than free-form on purpose — there is no artist on this project, so every option here is drawn procedurally from these ids by src/art/binderArt.ts. Presets mean every combination is one somebody chose to support, so a player can never assemble something that looks broken. The accent axis deliberately has no colour list of its own: it names a type id and reads that type's colour from types.json, so the Binder always matches the game's palette and a new type never needs a matching edit here.",
+
+  "defaults": {
+    "comment": "Used for a brand-new save and for any existing save migrating onto the Binder system. accentTypeId is overwritten during onboarding with the type of the creature the player just made, so the character arrives already matching their first creature.",
+    "buildId": "even",
+    "skinToneId": "tone-3",
+    "hairStyleId": "crop",
+    "hairColorId": "hair-dark",
+    "outfitId": "wrap",
+    "outfitToneId": "outfit-slate",
+    "accentTypeId": "ember",
+    "markId": "none"
+  },
+
+  "builds": [
+    { "id": "slight", "name": "Slight", "shoulderScale": 0.9, "heightScale": 0.97 },
+    { "id": "even", "name": "Even", "shoulderScale": 1.0, "heightScale": 1.0 },
+    { "id": "broad", "name": "Broad", "shoulderScale": 1.14, "heightScale": 1.02 },
+    { "id": "tall", "name": "Tall", "shoulderScale": 0.98, "heightScale": 1.07 }
+  ],
+
+  "skinTones": [
+    { "id": "tone-1", "name": "Porcelain", "color": "#F2D3BC" },
+    { "id": "tone-2", "name": "Sand", "color": "#E0B394" },
+    { "id": "tone-3", "name": "Amber", "color": "#C68A63" },
+    { "id": "tone-4", "name": "Umber", "color": "#9A6544" },
+    { "id": "tone-5", "name": "Chestnut", "color": "#70452D" },
+    { "id": "tone-6", "name": "Ebony", "color": "#4A2C1D" }
+  ],
+
+  "hairStyles": [
+    { "id": "crop", "name": "Crop" },
+    { "id": "swept", "name": "Swept" },
+    { "id": "braid", "name": "Braid" },
+    { "id": "long", "name": "Long" },
+    { "id": "tied", "name": "Tied" },
+    { "id": "shaved", "name": "Shaved" }
+  ],
+
+  "hairColors": [
+    { "id": "hair-dark", "name": "Ink", "color": "#241E2B" },
+    { "id": "hair-ash", "name": "Ash", "color": "#6B6472" },
+    { "id": "hair-ember", "name": "Ember", "color": "#B4462A" },
+    { "id": "hair-wheat", "name": "Wheat", "color": "#D8B26A" },
+    { "id": "hair-frost", "name": "Frost", "color": "#D5DCE8" },
+    { "id": "hair-bloom", "name": "Bloom", "color": "#7A5AA8" }
+  ],
+
+  "outfits": [
+    { "id": "wrap", "name": "Wrap" },
+    { "id": "coat", "name": "Longcoat" },
+    { "id": "harness", "name": "Harness" },
+    { "id": "robes", "name": "Robes" }
+  ],
+
+  "outfitTones": [
+    { "id": "outfit-slate", "name": "Slate", "color": "#33304A" },
+    { "id": "outfit-moss", "name": "Moss", "color": "#2E4438" },
+    { "id": "outfit-clay", "name": "Clay", "color": "#4A3330" },
+    { "id": "outfit-dusk", "name": "Dusk", "color": "#2A2C46" },
+    { "id": "outfit-bone", "name": "Bone", "color": "#5E5A54" }
+  ],
+
+  "marks": [
+    { "id": "none", "name": "None" },
+    { "id": "sigil", "name": "Sigil" },
+    { "id": "band", "name": "Band" },
+    { "id": "scatter", "name": "Scatter" }
+  ],
+
+  "nameMaxLengthComment": "Longest a Binder's name may be once tidied up. Every suggestion this file can produce fits comfortably inside it (the longest, 'Tamsin Ashford', is 14 characters), so the game can never propose a name it would then have to cut. Raise it and long names start truncating in the top-of-screen HUD, which is the one place the Binder's name is on screen at all times.",
+  "nameMaxLength": 18,
+
+  "nameParts": {
+    "comment": "Used to suggest a Binder name so the player never faces an empty text field — an empty field is the single most common place a first session is abandoned. The suggestion is always pre-filled and keeping it is a proper button, not a skip.",
+    "first": ["Wren", "Cass", "Orin", "Tamsin", "Rook", "Neve", "Alder", "Sable", "Fen", "Lyra"],
+    "second": ["Ashford", "Veil", "Thorne", "Quill", "Marrow", "Vale", "Ember", "Hollow"]
+  }
+}

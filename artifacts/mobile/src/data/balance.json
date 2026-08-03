@@ -10,5 +10,43 @@
     "common": 100,
     "rare": 15,
     "mythic": 3
+  },
+
+  "partySize": 3,
+  "maxBattleRounds": 50,
+  "maxBattleRoundsComment": "Safety valve against an endless stalemate (e.g. two healers with no way to finish each other). A battle that hits this cap is a draw, which the campaign scores as a loss.",
+  "emergencyHealThreshold": 0.5,
+  "emergencyHealThresholdComment": "How low an ally's HP must drop (as a fraction of max) before the battle AI prioritises healing over attacking.",
+
+  "damagePowerScaleComment": "Multiplies every move's power. Damage is ADDITIONALLY multiplied by cumulativeStatMultiplier(attacker.tier) — see computeDamage in battle.ts. That second term is essential: a move's raw damage is power x (attack / defence), and in an evenly matched fight those two stats carry the same tier multiplier, so it cancels out and damage would not grow with tier at all while HP grows ~2800x. The result was that a tier-6 mirror match needed over 1500 hits against a 50-round cap. Multiplying by the attacker's cumulative multiplier restores the balance so a fair fight takes a similar number of hits at EVERY tier. 0.25 keeps those fights in the 2-8 hit range with a reliable move (power 45). Raise it for shorter, swingier battles.",
+  "damagePowerScale": 0.25,
+
+  "pity": {
+    "comment": "Merges without a natural perfect (100) stat roll before one is forced. See mergeWithPity in merge.ts.",
+    "mergeThreshold": 10
+  },
+
+  "tutorial": {
+    "comment": "How many eggs the first-run tutorial lays out for the player's very first choice. Three is deliberate: it is enough for the choice to feel like a choice, and few enough that the player is not comparing a grid before they know what any of the numbers mean. It is kept separate from eggsPerBatch (the ordinary hatchery batch) so the hatchery can be retuned without changing the first thing anybody ever sees.",
+    "eggCount": 3
+  },
+
+  "reveal": {
+    "comment": "Single source of truth for what counts as a good roll. creatureArt.ts's sparkle, CreatureCard's gold stat colour and the merge reveal's celebration all read goldThreshold, so they can never disagree. nearThreshold is the near-miss band that flashes toward gold and settles back.",
+    "nearThreshold": 85,
+    "goldThreshold": 90,
+    "perfectThreshold": 100
+  },
+
+  "powerWeights": {
+    "comment": "Used for DISPLAY and SORTING only — never a game rule, never read by battle. Crit stats weight 0 because they are percentages, not magnitudes.",
+    "hp": 0.5,
+    "atk": 2,
+    "spAtk": 2,
+    "def": 1.5,
+    "spDef": 1.5,
+    "spd": 1.5,
+    "critChance": 0,
+    "critDamage": 0
   }
 }

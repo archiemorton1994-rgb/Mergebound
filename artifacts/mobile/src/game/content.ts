@@ -6,11 +6,15 @@
  */
 
 import balanceJson from '../data/balance.json';
+import binderJson from '../data/binder.json';
+import economyJson from '../data/economy.json';
 import hybridMovesJson from '../data/hybridMoves.json';
 import movesJson from '../data/moves.json';
 import speciesJson from '../data/species.json';
 import typesJson from '../data/types.json';
+import { STAT_KEYS } from './models';
 import type {
+  BinderAppearance,
   Creature,
   DamageMove,
   DrainMove,
@@ -18,6 +22,7 @@ import type {
   HybridMove,
   MoveDef,
   SpeciesDef,
+  StatKey,
   TypeDef,
   TypeRarity,
 } from './models';
@@ -44,7 +49,123 @@ export const balance = {
   eggsPerBatch: balanceJson.eggsPerBatch as number,
   combatDamageVariance: balanceJson.combatDamageVariance as number,
   typeRarityWeights: balanceJson.typeRarityWeights as unknown as Record<TypeRarity, number>,
+  /** How many creatures a side fields in one battle. */
+  partySize: balanceJson.partySize as number,
+  /** Stalemate safety valve — a battle reaching this many rounds is a draw. */
+  maxBattleRounds: balanceJson.maxBattleRounds as number,
+  /** HP fraction below which the battle AI prioritises healing. */
+  emergencyHealThreshold: balanceJson.emergencyHealThreshold as number,
+  /** Flat multiplier on every move's power — see computeDamage in battle.ts. */
+  damagePowerScale: balanceJson.damagePowerScale as number,
+  /** Merges without a natural perfect roll before one is forced. */
+  mergePityThreshold: balanceJson.pity.mergeThreshold as number,
+  /** First-run flow numbers — see onboarding.ts. */
+  tutorial: {
+    /** How many eggs the tutorial lays out for the player's first choice. */
+    eggCount: balanceJson.tutorial.eggCount as number,
+  },
+  /** Roll-quality thresholds shared by the art, the stat colours and the reveal. */
+  reveal: {
+    near: balanceJson.reveal.nearThreshold as number,
+    gold: balanceJson.reveal.goldThreshold as number,
+    perfect: balanceJson.reveal.perfectThreshold as number,
+  },
+  /** Display/sort weighting only — never a game rule. */
+  powerWeights: balanceJson.powerWeights as unknown as Record<StatKey, number>,
 };
+
+/**
+ * Every currency number. See src/data/economy.json for what each one means and
+ * why it is set where it is — the reasoning lives with the numbers, not here.
+ */
+export const economy = {
+  startingWallet: {
+    gold: economyJson.startingWallet.gold as number,
+    mergeStones: economyJson.startingWallet.mergeStones as number,
+    gems: economyJson.startingWallet.gems as number,
+  },
+  merge: {
+    stoneCostByInputTier: economyJson.merge.stoneCostByInputTier as number[],
+    crossTierCostFraction: economyJson.merge.crossTierCostFraction as number,
+  },
+  battleRewards: {
+    goldPerEnemyPerPowerUnit: economyJson.battleRewards.goldPerEnemyPerPowerUnit as number,
+    starGoldMultipliers: economyJson.battleRewards.starGoldMultipliers as number[],
+    starMergeStones: economyJson.battleRewards.starMergeStones as number[],
+    minStonesPerWin: economyJson.battleRewards.minStonesPerWin as number,
+    firstClearGoldMultiplier: economyJson.battleRewards.firstClearGoldMultiplier as number,
+    repeatDecayPerAttempt: economyJson.battleRewards.repeatDecayPerAttempt as number,
+    repeatRewardFloor: economyJson.battleRewards.repeatRewardFloor as number,
+  },
+  dailyCaps: {
+    stonesEarned: economyJson.dailyCaps.stonesEarned as number,
+    stonesPurchased: economyJson.dailyCaps.stonesPurchased as number,
+  },
+  idle: {
+    rosterSize: economyJson.idle.rosterSize as number,
+    goldPerHourPerPowerUnit: economyJson.idle.goldPerHourPerPowerUnit as number,
+    offlineCapHours: economyJson.idle.offlineCapHours as number,
+    minCollectMinutes: economyJson.idle.minCollectMinutes as number,
+  },
+  exchange: {
+    baseGoldPerStone: economyJson.exchange.baseGoldPerStone as number,
+    priceGrowth: economyJson.exchange.priceGrowth as number,
+  },
+  gemSources: {
+    stageFirstClearThreeStars: economyJson.gemSources.stageFirstClearThreeStars as number,
+    bossFirstClear: economyJson.gemSources.bossFirstClear as number,
+    regionFullyMastered: economyJson.gemSources.regionFullyMastered as number,
+  },
+  gemSinks: {
+    goldPerGem: economyJson.gemSinks.goldPerGem as number,
+    cosmeticPriceBands: economyJson.gemSinks.cosmeticPriceBands as Record<string, number>,
+  },
+};
+
+/** The Binder's appearance option lists — see src/data/binder.json. */
+export const binderContent = {
+  builds: binderJson.builds,
+  skinTones: binderJson.skinTones,
+  hairStyles: binderJson.hairStyles,
+  hairColors: binderJson.hairColors,
+  outfits: binderJson.outfits,
+  outfitTones: binderJson.outfitTones,
+  marks: binderJson.marks,
+  nameParts: binderJson.nameParts,
+  /** Character limit on a Binder's name after tidying — see sanitizeBinderName. */
+  nameMaxLength: binderJson.nameMaxLength as number,
+};
+
+/**
+ * The Binder a brand-new save starts with. Returns a fresh object every call —
+ * never a shared constant, or every migrated save would alias one mutable
+ * record and editing one player's Binder would edit them all.
+ */
+export function defaultBinderAppearance(): BinderAppearance {
+  const d = binderJson.defaults;
+  return {
+    buildId: d.buildId,
+    skinToneId: d.skinToneId,
+    hairStyleId: d.hairStyleId,
+    hairColorId: d.hairColorId,
+    outfitId: d.outfitId,
+    outfitToneId: d.outfitToneId,
+    accentTypeId: d.accentTypeId,
+    markId: d.markId,
+  };
+}
+
+/**
+ * A single number summarising how strong a creature is, for SORTING AND DISPLAY
+ * only. Never read this in battle — battle resolves from the real stats. Crit
+ * stats are weighted 0 because they are percentages, not magnitudes, so a big
+ * critDamage number must not drown out everything else in the sort order.
+ */
+export function creaturePower(creature: Creature): number {
+  return Math.round(
+    STAT_KEYS.reduce((sum, key) => sum + creature.stats[key] * balance.powerWeights[key], 0),
+  );
+}
 
 export function getSpecies(speciesId: string): SpeciesDef {
   const found = allSpecies.find((s) => s.id === speciesId);

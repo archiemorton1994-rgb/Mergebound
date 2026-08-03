@@ -7,21 +7,33 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { economy } from '../content';
 import { generateEggBatch } from '../hatch';
 import { merge } from '../merge';
-import { STAT_KEYS } from '../models';
+import { STAT_KEYS, type Creature } from '../models';
 import { createRng } from '../rng';
-import { deserializeCollection, serializeCollection, type SaveData } from '../save';
+import {
+  deserializeCollection,
+  serializeCollection,
+  stampFreshSave,
+  withDefaults,
+  type SaveData,
+} from '../save';
 import { makeCreature } from './helpers';
+
+/** A complete save holding just these creatures — every other field at its default. */
+function saveOf(collection: Creature[], mergePity = 0): SaveData {
+  return withDefaults({ collection, mergePity });
+}
 
 describe('save and load round trip', () => {
   it('an empty collection with zero pity survives the round trip', () => {
-    const data: SaveData = { collection: [], mergePity: 0 };
+    const data = saveOf([]);
     expect(deserializeCollection(serializeCollection(data))).toEqual(data);
   });
 
   it('hatched creatures survive the round trip with every field intact', () => {
-    const data: SaveData = { collection: generateEggBatch(createRng(21)), mergePity: 0 };
+    const data = saveOf(generateEggBatch(createRng(21)));
     expect(deserializeCollection(serializeCollection(data))).toEqual(data);
   });
 
@@ -29,13 +41,13 @@ describe('save and load round trip', () => {
     const rng = createRng(8);
     const a = makeCreature({ tier: 1, types: ['ember', 'tide'] });
     const b = makeCreature({ tier: 1, types: ['volt'] });
-    const data: SaveData = { collection: [merge(a, b, rng)], mergePity: 3 };
+    const data = saveOf([merge(a, b, rng)], 3);
     expect(deserializeCollection(serializeCollection(data))).toEqual(data);
   });
 
   it('the merge pity counter survives the round trip at any value', () => {
     for (const mergePity of [0, 1, 9, 10, 500]) {
-      const data: SaveData = { collection: [], mergePity };
+      const data = saveOf([], mergePity);
       expect(deserializeCollection(serializeCollection(data)).mergePity).toBe(mergePity);
     }
   });
@@ -46,13 +58,177 @@ describe('save and load round trip', () => {
     const first = eggs[0];
     const second = eggs[1];
     if (!first || !second) throw new Error('expected at least two eggs');
-    const data: SaveData = { collection: [...eggs, merge(first, second, rng)], mergePity: 5 };
+    const data = saveOf([...eggs, merge(first, second, rng)], 5);
     expect(deserializeCollection(serializeCollection(data))).toEqual(data);
   });
 
   it('always writes the current save version', () => {
-    const saved = JSON.parse(serializeCollection({ collection: [], mergePity: 0 })) as { version: number };
-    expect(saved.version).toBe(3);
+    const saved = JSON.parse(serializeCollection(saveOf([]))) as { version: number };
+    expect(saved.version).toBe(4);
+  });
+
+  it('the wallet, campaign, Binder and onboarding all survive the round trip', () => {
+    const data = saveOf(generateEggBatch(createRng(5)), 2);
+    data.wallet = { gold: 1234, mergeStones: 56, gems: 7 };
+    data.campaign.stages['cinderreach-1'] = {
+      bestStars: 2, bestRounds: 4, clears: 3, attemptsToday: 1, attemptsDay: 20000,
+    };
+    data.campaign.claimedChests.push('cinderreach-boss');
+    data.binder = { ...data.binder, name: 'Wren Ashford' };
+    data.onboarding = { step: 'complete', seed: 42, seenTips: ['merge-basics'] };
+    data.shop.ownedCosmeticIds.push('cloak-of-embers');
+
+    expect(deserializeCollection(serializeCollection(data))).toEqual(data);
+  });
+});
+
+describe('migrating a v3 save (collection and pity, but no currencies yet)', () => {
+  function v3Save(collection: Creature[], mergePity = 0): string {
+    return JSON.stringify({ version: 3, collection, mergePity });
+  }
+
+  it('keeps every creature and the pity counter exactly as they were', () => {
+    const collection = generateEggBatch(createRng(12));
+    const migrated = deserializeCollection(v3Save(collection, 7));
+    expect(migrated.collection).toEqual(collection);
+    expect(migrated.mergePity).toBe(7);
+  });
+
+  it('opens with the starting wallet', () => {
+    const migrated = deserializeCollection(v3Save(generateEggBatch(createRng(2))));
+    expect(migrated.wallet).toEqual(economy.startingWallet);
+  });
+
+  it('has no pending idle income — an old save never earned any', () => {
+    const migrated = deserializeCollection(v3Save(generateEggBatch(createRng(2))));
+    expect(migrated.economy.lastCollectedAt).toBe(0);
+    expect(migrated.economy.dayIndex).toBe(-1);
+    const stamped = stampFreshSave(migrated, 1_700_000_000_000, 19675);
+    expect(stamped.economy.lastCollectedAt).toBe(1_700_000_000_000);
+  });
+
+  it('never sends an existing player back to the egg tutorial', () => {
+    const migrated = deserializeCollection(v3Save(generateEggBatch(createRng(3))));
+    expect(migrated.onboarding.step).toBe('complete');
+  });
+
+  it('still gives the tutorial to someone who installed but never hatched', () => {
+    const migrated = deserializeCollection(v3Save([]));
+    expect(migrated.onboarding.step).toBe('first-egg');
+  });
+
+  it('arrives with the player’s perfect-rolled creatures already protected', () => {
+    const ordinary = makeCreature({ id: 'ordinary' });
+    const perfect = makeCreature({
+      id: 'perfect',
+      statRolls: { ...makeCreature().statRolls, critChance: 100 },
+    });
+    const migrated = deserializeCollection(v3Save([ordinary, perfect]));
+    expect(migrated.lockedIds).toContain('perfect');
+    expect(migrated.lockedIds).not.toContain('ordinary');
+  });
+
+  it('gives every migrated save its own campaign record, not a shared one', () => {
+    const a = deserializeCollection(v3Save([]));
+    const b = deserializeCollection(v3Save([]));
+    a.campaign.stages['cinderreach-1'] = {
+      bestStars: 3, bestRounds: 2, clears: 1, attemptsToday: 1, attemptsDay: 1,
+    };
+    expect(Object.keys(b.campaign.stages)).toHaveLength(0);
+  });
+});
+
+describe('repairing the critical-hit inflation on old saves', () => {
+  it('brings an impossibly high critical-hit chance back to what it should have been', () => {
+    // What a tier-4 creature actually looked like before the fix: the tier
+    // multiplier had been applied to a percentage, so it critted every hit.
+    const broken = makeCreature({
+      tier: 4,
+      speciesId: 'cindret',
+      stats: { ...makeCreature().stats, critChance: 291, critDamage: 7529 },
+      statRolls: { ...makeCreature().statRolls, critChance: 50, critDamage: 50 },
+    });
+    const loaded = deserializeCollection(JSON.stringify({
+      version: 3, collection: [broken], mergePity: 0,
+    }));
+    const [fixed] = loaded.collection;
+    if (!fixed) throw new Error('expected the creature to survive the repair');
+
+    expect(fixed.stats.critChance).toBeLessThan(100);
+    expect(fixed.stats.critChance).toBe(6); // cindret base, neutral roll
+    expect(fixed.stats.critDamage).toBe(155);
+    // Nothing else about the creature is touched.
+    expect(fixed.id).toBe(broken.id);
+    expect(fixed.tier).toBe(4);
+    expect(fixed.stats.hp).toBe(broken.stats.hp);
+    expect(fixed.statRolls).toEqual(broken.statRolls);
+  });
+
+  it('leaves a healthy creature completely alone', () => {
+    const healthy = generateEggBatch(createRng(31));
+    const loaded = deserializeCollection(JSON.stringify({
+      version: 3, collection: healthy, mergePity: 0,
+    }));
+    expect(loaded.collection).toEqual(healthy);
+  });
+
+  it('still loads a creature whose species no longer exists', () => {
+    const orphan = makeCreature({
+      speciesId: 'no-such-species',
+      stats: { ...makeCreature().stats, critChance: 9999, critDamage: 99999 },
+    });
+    const loaded = deserializeCollection(JSON.stringify({
+      version: 3, collection: [orphan], mergePity: 0,
+    }));
+    const [fixed] = loaded.collection;
+    if (!fixed) throw new Error('expected the creature to survive');
+    expect(fixed.stats.critChance).toBeLessThanOrEqual(100);
+    expect(fixed.stats.critDamage).toBeLessThanOrEqual(400);
+  });
+});
+
+describe('tolerating damage to the parts that are not the collection', () => {
+  function v4With(extra: Record<string, unknown>): string {
+    const base = withDefaults({ collection: [makeCreature({ id: 'keeper' })], mergePity: 0 });
+    return JSON.stringify({ version: 4, ...base, ...extra });
+  }
+
+  it('rebuilds a corrupt wallet rather than losing the collection', () => {
+    const loaded = deserializeCollection(v4With({ wallet: { gold: 'lots' } }));
+    expect(loaded.collection.map((c) => c.id)).toEqual(['keeper']);
+    expect(loaded.wallet).toEqual(economy.startingWallet);
+  });
+
+  it('rebuilds corrupt onboarding, campaign, Binder and shop state', () => {
+    const loaded = deserializeCollection(v4With({
+      onboarding: { step: 'not-a-real-step' },
+      campaign: 'nonsense',
+      binder: { name: 5 },
+      shop: 42,
+    }));
+    expect(loaded.collection.map((c) => c.id)).toEqual(['keeper']);
+    expect(loaded.onboarding.step).toBe('complete'); // it has a creature
+    expect(loaded.campaign.stages).toEqual({});
+    expect(loaded.binder.name).toBe('');
+    expect(loaded.shop.ownedCosmeticIds).toEqual([]);
+  });
+
+  it('drops a lock pointing at a creature that no longer exists', () => {
+    const loaded = deserializeCollection(v4With({ lockedIds: ['keeper', 'long-gone'] }));
+    expect(loaded.lockedIds).toEqual(['keeper']);
+  });
+
+  it('ignores a campaign stage id this build does not recognise', () => {
+    const loaded = deserializeCollection(v4With({
+      campaign: {
+        stages: {
+          'cinderreach-1': { bestStars: 3, bestRounds: 2, clears: 1, attemptsToday: 0, attemptsDay: 1 },
+          'stage-from-the-future': { nonsense: true },
+        },
+        claimedChests: [],
+      },
+    }));
+    expect(Object.keys(loaded.campaign.stages)).toEqual(['cinderreach-1']);
   });
 });
 

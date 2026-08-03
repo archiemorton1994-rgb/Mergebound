@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { balance, movesForCreature } from '../content';
+import { balance, cumulativeStatMultiplier, movesForCreature } from '../content';
 import {
   chooseAction,
   computeDamage,
@@ -45,54 +45,70 @@ function combatant(overrides: Parameters<typeof makeCreature>[0] = {}, currentHp
   return { creature, currentHp: currentHp ?? creature.stats.hp, side: 'player' };
 }
 
+/**
+ * The raw damage the documented formula should produce, before type
+ * effectiveness, crit and the variance roll. Stated in terms of the balance
+ * constants rather than a pinned number, so retuning damagePowerScale retunes
+ * the game instead of breaking the test suite. The stat ratios below are chosen
+ * to land on whole numbers so that rounding never hides a real error.
+ */
+function rawDamage(power: number, atkStat: number, defStat: number, tier = 0): number {
+  return power * balance.damagePowerScale * cumulativeStatMultiplier(tier) * (atkStat / defStat);
+}
+
 describe('computeDamage: physical vs special stat usage', () => {
   it('a physical move scales off atk and def, ignoring spAtk/spDef', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 100, spAtk: 999, critChance: 0 } });
-    const defender = makeCreature({ stats: { ...makeCreature().stats, def: 50, spDef: 999 } });
+    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 800, spAtk: 999, critChance: 0 } });
+    const defender = makeCreature({ stats: { ...makeCreature().stats, def: 100, spDef: 999 } });
     // seq: [crit roll (fails, critChance=0), variance roll (0.5 = exact midpoint, factor 1)]
     const { damage, crit } = computeDamage(attacker, defender, neutralPhysical, sequenceRng([0, 0.5]));
     expect(crit).toBe(false);
-    expect(damage).toBe(Math.round(50 * (100 / 50))); // power * atk/def = 100
+    expect(damage).toBe(Math.round(rawDamage(50, 800, 100)));
   });
 
   it('a special move scales off spAtk and spDef, ignoring atk/def', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, spAtk: 100, atk: 999, critChance: 0 } });
-    const defender = makeCreature({ stats: { ...makeCreature().stats, spDef: 50, def: 999 } });
+    const attacker = makeCreature({ stats: { ...makeCreature().stats, spAtk: 800, atk: 999, critChance: 0 } });
+    const defender = makeCreature({ stats: { ...makeCreature().stats, spDef: 100, def: 999 } });
     const { damage } = computeDamage(attacker, defender, neutralSpecial, sequenceRng([0, 0.5]));
-    expect(damage).toBe(100);
+    expect(damage).toBe(Math.round(rawDamage(50, 800, 100)));
   });
 });
 
 describe('computeDamage: type effectiveness', () => {
+  // Stated as multiples of an identical neutral-matchup hit rather than as raw
+  // numbers: the claim under test is "strong is double, weak is half", and a
+  // ratio says that directly and survives any retune of the damage constants.
+  const neutralHit = () => {
+    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 800, critChance: 0 } });
+    const defender = makeCreature({ types: ['aether'], stats: { ...makeCreature().stats, def: 100 } });
+    const move: DamageMove = { ...neutralPhysical, typeId: 'ember' };
+    return computeDamage(attacker, defender, move, sequenceRng([0, 0.5])).damage;
+  };
+
+  function hitAgainst(defenderTypes: string[]): number {
+    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 800, critChance: 0 } });
+    const defender = makeCreature({ types: defenderTypes, stats: { ...makeCreature().stats, def: 100 } });
+    const move: DamageMove = { ...neutralPhysical, typeId: 'ember' };
+    return computeDamage(attacker, defender, move, sequenceRng([0, 0.5])).damage;
+  }
+
   it('a strong matchup roughly doubles damage', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 100, critChance: 0 } });
-    const defender = makeCreature({ types: ['bloom'], stats: { ...makeCreature().stats, def: 100 } });
-    const move: DamageMove = { ...neutralPhysical, typeId: 'ember' }; // ember -> bloom = 2x
-    const { damage } = computeDamage(attacker, defender, move, sequenceRng([0, 0.5]));
-    expect(damage).toBe(Math.round(50 * 1 * 2)); // power * (atk/def=1) * 2x
+    expect(hitAgainst(['bloom'])).toBe(neutralHit() * 2); // ember -> bloom = 2x
   });
 
   it('a weak matchup roughly halves damage', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 100, critChance: 0 } });
-    const defender = makeCreature({ types: ['volt'], stats: { ...makeCreature().stats, def: 100 } });
-    const move: DamageMove = { ...neutralPhysical, typeId: 'ember' }; // ember -> volt = 0.5x
-    const { damage } = computeDamage(attacker, defender, move, sequenceRng([0, 0.5]));
-    expect(damage).toBe(Math.round(50 * 0.5));
+    expect(hitAgainst(['volt'])).toBe(neutralHit() / 2); // ember -> volt = 0.5x
   });
 
   it('stacks against a dual-typed defender', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 100, critChance: 0 } });
     // ember -> bloom = 2x, ember -> volt = 0.5x, stacked = 1x
-    const defender = makeCreature({ types: ['bloom', 'volt'], stats: { ...makeCreature().stats, def: 100 } });
-    const move: DamageMove = { ...neutralPhysical, typeId: 'ember' };
-    const { damage } = computeDamage(attacker, defender, move, sequenceRng([0, 0.5]));
-    expect(damage).toBe(50);
+    expect(hitAgainst(['bloom', 'volt'])).toBe(neutralHit());
   });
 });
 
 describe('computeDamage: crit', () => {
   it('a crit multiplies damage by critDamage/100', () => {
-    const base = { ...makeCreature().stats, atk: 100, def: 100 };
+    const base = { ...makeCreature().stats, atk: 800, def: 100 };
     const critter = makeCreature({ stats: { ...base, critChance: 100, critDamage: 200 } });
     const nonCritter = makeCreature({ stats: { ...base, critChance: 0, critDamage: 200 } });
     const defender = makeCreature({ types: ['aether'], stats: { ...makeCreature().stats, def: 100 } });
@@ -106,6 +122,58 @@ describe('computeDamage: crit', () => {
   });
 });
 
+describe('computeDamage: tier scaling', () => {
+  it('a higher-tier attacker hits harder than a lower-tier one with the same stats', () => {
+    // Without this, damage does not grow with tier at all: raw damage is
+    // attack/defence, and in an even fight both carry the same tier multiplier
+    // so it cancels — while HP keeps growing. Tier-6 fights then need over a
+    // thousand hits against a 50-round cap and can only ever end in a draw.
+    const stats = { ...makeCreature().stats, atk: 800, critChance: 0 };
+    const defender = makeCreature({ types: ['aether'], stats: { ...makeCreature().stats, def: 100 } });
+
+    const lowTier = computeDamage(
+      makeCreature({ tier: 0, stats }), defender, neutralPhysical, sequenceRng([0, 0.5]),
+    ).damage;
+    const highTier = computeDamage(
+      makeCreature({ tier: 3, stats }), defender, neutralPhysical, sequenceRng([0, 0.5]),
+    ).damage;
+
+    expect(highTier).toBeGreaterThan(lowTier);
+    expect(highTier).toBe(Math.round(rawDamage(50, 800, 100, 3)));
+  });
+
+  it('an evenly matched fight takes a similar number of rounds at every tier', () => {
+    // The real point of the tier term: a fair fight should feel the same at
+    // tier 0 and tier 6, because both sides grew together. Before this, the
+    // same fight went from 1 hit to over 1500.
+    const roundsAt = (tier: number) => {
+      const totals: number[] = [];
+      for (let seed = 1; seed <= 12; seed++) {
+        const mult = cumulativeStatMultiplier(tier);
+        const scaled = (s: number) => Math.max(1, Math.round(s * mult));
+        const stats = {
+          ...makeCreature().stats,
+          hp: scaled(40), atk: scaled(12), spAtk: scaled(12),
+          def: scaled(10), spDef: scaled(10), spd: scaled(11),
+        };
+        totals.push(runBattle(
+          [makeCreature({ tier, stats })],
+          [makeCreature({ tier, stats })],
+          createRng(seed),
+        ).rounds);
+      }
+      return totals.reduce((a, b) => a + b, 0) / totals.length;
+    };
+
+    const low = roundsAt(0);
+    const high = roundsAt(6);
+    expect(low).toBeLessThan(balance.maxBattleRounds);
+    expect(high).toBeLessThan(balance.maxBattleRounds);
+    // Within 2x of each other rather than the ~1500x the bug produced.
+    expect(Math.max(low, high) / Math.min(low, high)).toBeLessThan(2);
+  });
+});
+
 describe('computeDamage: floor and variance', () => {
   it('never deals less than 1 damage, even against overwhelming defence', () => {
     const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 1, critChance: 0 } });
@@ -115,9 +183,9 @@ describe('computeDamage: floor and variance', () => {
   });
 
   it('stays within the configured ±combatDamageVariance band across many seeds', () => {
-    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 100, critChance: 0 } });
-    const defender = makeCreature({ stats: { ...makeCreature().stats, def: 100 } });
-    const raw = 50; // power * atk/def * 1x type
+    const attacker = makeCreature({ stats: { ...makeCreature().stats, atk: 800, critChance: 0 } });
+    const defender = makeCreature({ types: ['aether'], stats: { ...makeCreature().stats, def: 100 } });
+    const raw = rawDamage(50, 800, 100);
     for (let seed = 1; seed <= 100; seed++) {
       const { damage } = computeDamage(attacker, defender, neutralPhysical, createRng(seed));
       const min = Math.max(1, Math.floor(raw * (1 - balance.combatDamageVariance)));
@@ -326,6 +394,42 @@ describe('manual battle state machine (startBattle/currentActor/takeTurn)', () =
     expect(state.log).toHaveLength(1);
     expect(state.log[0]?.moveName).toBe(chosenMove.name);
     expect(enemyCombatant?.currentHp).toBeLessThan(40);
+  });
+
+  it('always finishes, whatever the party sizes and whatever the luck', () => {
+    // This is the guard against a freeze, not a balance check. A round's turn
+    // order is fixed when the round starts, so creatures can die while still
+    // queued. If every remaining entry is dead while both sides still have
+    // someone alive, the engine used to stop producing an actor without ever
+    // advancing the round — runBattle then span forever and the round cap could
+    // never fire. Two sides trading kills in one round is enough to cause it,
+    // which on a real device is a frozen game, not a wrong number.
+    for (let size = 1; size <= 3; size++) {
+      for (let seed = 1; seed <= 60; seed++) {
+        const player = Array.from({ length: size }, (_, i) => makeCreature({ id: `p${i}` }));
+        const enemy = Array.from({ length: size }, (_, i) => makeCreature({ id: `e${i}` }));
+        const result = runBattle(player, enemy, createRng(seed));
+        expect(result.rounds, `size ${size} seed ${seed}`).toBeLessThanOrEqual(balance.maxBattleRounds);
+        expect(['player', 'enemy']).toContain(result.winner);
+      }
+    }
+  });
+
+  it('keeps going when everyone still queued this round is already dead', () => {
+    // The exact shape of the freeze: two evenly matched sides where the pair
+    // acting second both die before their turn comes round.
+    const glass = { ...makeCreature().stats, hp: 1, atk: 400, spAtk: 400, def: 1, spDef: 1 };
+    const player = [
+      makeCreature({ id: 'p-fast', stats: { ...glass, spd: 100 } }),
+      makeCreature({ id: 'p-slow', stats: { ...glass, spd: 1 } }),
+    ];
+    const enemy = [
+      makeCreature({ id: 'e-fast', stats: { ...glass, spd: 99 } }),
+      makeCreature({ id: 'e-slow', stats: { ...glass, spd: 2 } }),
+    ];
+    const result = runBattle(player, enemy, createRng(3));
+    expect(result.rounds).toBeLessThanOrEqual(balance.maxBattleRounds);
+    expect(['player', 'enemy']).toContain(result.winner);
   });
 
   it('isBattleOver / getWinner agree with a battle actually being finished', () => {

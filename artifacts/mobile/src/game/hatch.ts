@@ -4,7 +4,7 @@
  */
 
 import { allSpecies, allTypes, balance, tierMultiplier, typeWeight } from './content';
-import { STAT_KEYS, type Creature, type Rng, type Stats } from './models';
+import { PERCENT_STAT_KEYS, STAT_KEYS, type Creature, type Rng, type Stats } from './models';
 import { makeId, pickOne, pickWeighted } from './rng';
 
 export interface StatRollResult {
@@ -22,7 +22,17 @@ export function rollStat(base: number, rng: Rng, variance: number): StatRollResu
   return { value, rollPercent };
 }
 
-/** Roll every stat in a Stats object, returning both the values and their roll quality. */
+/**
+ * Roll every stat in a Stats object, returning both the values and their roll quality.
+ *
+ * The tier multiplier is applied to MAGNITUDE stats only. Percentage stats
+ * (critChance, critDamage — see PERCENT_STAT_KEYS) are deliberately excluded:
+ * they are odds and ratios, not amounts, so scaling them by tier is meaningless.
+ * Left unexcluded, a tier-4 creature reaches a critChance above 100 and crits on
+ * literally every hit, and a tier-6 one hits for roughly 4400x normal damage —
+ * which is exactly what shipped before this exclusion existed. Every stat still
+ * takes exactly one rng draw, so roll quality stays independent per stat.
+ */
 export function rollAllStats(
   base: Stats,
   rng: Rng,
@@ -32,7 +42,8 @@ export function rollAllStats(
   const stats = {} as Stats;
   const statRolls = {} as Stats;
   for (const key of STAT_KEYS) {
-    const { value, rollPercent } = rollStat(base[key] * multiplier, rng, v);
+    const keyMultiplier = PERCENT_STAT_KEYS.includes(key) ? 1 : multiplier;
+    const { value, rollPercent } = rollStat(base[key] * keyMultiplier, rng, v);
     stats[key] = value;
     statRolls[key] = rollPercent;
   }

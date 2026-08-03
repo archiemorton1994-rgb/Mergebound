@@ -118,3 +118,101 @@ export type MoveDef = DamageMove | HealMove | DrainMove | HybridMove;
 
 /** A random source: returns a float in [0, 1). Seeded implementations live in rng.ts. */
 export type Rng = () => number;
+
+// --- Persistent player state ------------------------------------------------
+// These are the shapes that survive between sessions. Everything here is
+// serialised by save.ts, so changing any of them needs a SAVE_VERSION bump and
+// a migration in the same change — see the note at the top of save.ts.
+
+/** The three currencies. Roles are fixed in DESIGN.md and must not drift. */
+export interface Wallet {
+  /** Earned constantly, from battles and idle income. Spends on gear and merge stones. */
+  gold: number;
+  /** Spent to merge. Earned through play, or bought with gold — never with real money directly. */
+  mergeStones: number;
+  /** Premium. Bought with money or won in small one-time amounts. Buys time and vanity, never power. */
+  gems: number;
+}
+
+/**
+ * Everything the economy needs to remember between sessions.
+ *
+ * `dayIndex` is a monotonic high-water mark, not simply "today" — it never
+ * decreases, however the device clock is set. Every daily cap keys off it, so
+ * winding the clock backwards cannot reset a single one of them.
+ */
+export interface EconomyState {
+  /** When idle income was last banked. 0 means "never" and is filled in on first load. */
+  lastCollectedAt: number;
+  /** Monotonic day counter. -1 means "not yet stamped". */
+  dayIndex: number;
+  stonesEarnedToday: number;
+  /** Doubles as the exchange escalator step — the Nth stone bought today costs more. */
+  stonesPurchasedToday: number;
+  /** Counted for diagnostics only. A player is never punished for a clock jump. */
+  clockAnomalies: number;
+}
+
+export type StarCount = 0 | 1 | 2 | 3;
+
+export interface StageProgress {
+  bestStars: StarCount;
+  /** Fewest rounds this stage has ever been cleared in. 0 means never cleared. */
+  bestRounds: number;
+  clears: number;
+  /** Attempts today — wins AND losses, so a player cannot farm by losing. */
+  attemptsToday: number;
+  /** The day those attempts belong to. A stale day means the count is treated as 0. */
+  attemptsDay: number;
+}
+
+export interface CampaignProgress {
+  stages: Record<string, StageProgress>;
+  claimedChests: string[];
+}
+
+/** Every axis of the Binder's look. All ids reference src/data/binder.json. */
+export interface BinderAppearance {
+  buildId: string;
+  skinToneId: string;
+  hairStyleId: string;
+  hairColorId: string;
+  outfitId: string;
+  outfitToneId: string;
+  /** Names a type id — the colour itself comes from types.json. */
+  accentTypeId: string;
+  markId: string;
+}
+
+export interface Binder {
+  /** Empty string means the player has not named themselves yet. */
+  name: string;
+  appearance: BinderAppearance;
+}
+
+/**
+ * Where a player is in the first-run flow. Stored rather than inferred so that
+ * force-quitting mid-tutorial resumes exactly where it left off.
+ */
+export type OnboardingStep =
+  | 'first-egg'
+  | 'second-egg'
+  | 'first-merge'
+  | 'binder-look'
+  | 'binder-name'
+  | 'first-battle'
+  | 'complete';
+
+export interface OnboardingState {
+  step: OnboardingStep;
+  /** Fixes the tutorial's eggs, so a resumed tutorial shows the same ones. */
+  seed: number;
+  seenTips: string[];
+}
+
+export interface ShopState {
+  purchasedOneTimeIds: string[];
+  ownedCosmeticIds: string[];
+  /** Cosmetic slot id -> owned cosmetic id. */
+  equippedCosmetics: Record<string, string>;
+}

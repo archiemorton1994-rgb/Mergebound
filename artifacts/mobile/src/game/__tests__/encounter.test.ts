@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { allSpecies, allTypes, cumulativeStatMultiplier, getSpecies } from '../content';
 import { generateEnemy, generateEnemyParty } from '../encounter';
 import { balance } from '../content';
-import { STAT_KEYS } from '../models';
+import { PERCENT_STAT_KEYS, STAT_KEYS } from '../models';
 import { createRng } from '../rng';
 
 describe('generateEnemy', () => {
@@ -40,7 +40,9 @@ describe('generateEnemy', () => {
       const e = generateEnemy(createRng(seed), tier);
       const base = getSpecies(e.speciesId).baseStats;
       for (const k of STAT_KEYS) {
-        const expected = base[k] * mult;
+        // Percentage stats (crit chance/damage) deliberately never take the tier
+        // multiplier — they are odds and ratios, not amounts. See rollAllStats.
+        const expected = base[k] * (PERCENT_STAT_KEYS.includes(k) ? 1 : mult);
         const min = Math.max(1, Math.floor(expected * (1 - balance.statRollVariance)));
         const max = Math.ceil(expected * (1 + balance.statRollVariance));
         expect(e.stats[k], `${k} seed ${seed}`).toBeGreaterThanOrEqual(min);
