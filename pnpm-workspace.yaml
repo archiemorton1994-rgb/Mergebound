@@ -47,8 +47,10 @@ catalog:
   '@tailwindcss/vite': ^4.1.14
   '@tanstack/react-query': ^5.90.21
   '@types/node': ^25.3.3
-  '@types/react': ^19.2.0
-  '@types/react-dom': ^19.2.0
+  # Type versions must track the pinned react/react-dom 19.1.0 below —
+  # mixing 19.1 and 19.2 type definitions breaks typecheck.
+  '@types/react': ~19.1.10
+  '@types/react-dom': ~19.1.7
   '@vitejs/plugin-react': ^5.0.4
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
@@ -95,7 +97,8 @@ overrides:
   "esbuild>@esbuild/sunos-x64": "-"
   "esbuild>@esbuild/win32-arm64": "-"
   "esbuild>@esbuild/win32-ia32": "-"
-  "esbuild>@esbuild/win32-x64": "-"
+  # win32-x64 kept: local development happens on Windows; Replit only downloads
+  # binaries for its own platform, so this costs Replit nothing.
   "esbuild>@esbuild/aix-ppc64": '-'
   "esbuild>@esbuild/android-arm": '-'
   "esbuild>@esbuild/android-arm64": '-'
@@ -144,7 +147,7 @@ overrides:
   "rollup>@rollup/rollup-win32-arm64-msvc": "-"
   "rollup>@rollup/rollup-win32-ia32-msvc": "-"
   "rollup>@rollup/rollup-win32-x64-gnu": "-"
-  "rollup>@rollup/rollup-win32-x64-msvc": "-"
+  # win32-x64-msvc kept: needed for local Windows development (see esbuild note above).
   "@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64": "-"
   "@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64": "-"
   "@expo/ngrok-bin>@expo/ngrok-bin-freebsd-ia32": "-"
