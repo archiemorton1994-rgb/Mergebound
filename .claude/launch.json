@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mobile-web-8092",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [".claude/mobile-web-wrapper.js"],
+      "port": 8092
+    }
+  ]
+}

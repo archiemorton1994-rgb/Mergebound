@@ -1,6 +1,6 @@
 # MergeBound
 
-MergeBound is a mobile creature-merging RPG built with Expo / React Native and TypeScript, targeting an eventual App Store release via Replit. Players hatch creatures from eggs, merge two creatures into a stronger one, battle, earn idle income, forge gear, and buy currency — built in that order (see Build order). Slice 1 (hatch + merge + local save) is complete.
+MergeBound is a mobile creature-merging RPG built with Expo / React Native and TypeScript, targeting an eventual App Store release via Replit. Players hatch creatures from eggs, merge two creatures into a stronger one, battle, earn idle income, forge gear, and buy currency — built in that order (see Build order). Slice 1 (hatch + merge + local save) and the core of slice 2 (party battles) are complete.
 
 **The owner cannot read or write code.** Every change must come with a plain-English summary of what changed and why. Automated checks are the owner's only way to verify work — keep them passing and extend them with every logic change.
 
@@ -46,7 +46,20 @@ Nine types, defined in `src/data/types.json`, each with a `rarity` (`common` | `
 
 Rarity is not meant to be raw combat power: a common-type creature should still be able to beat a rare/mythic one. Rarity should show up as better base stats and better special attacks on the species that roll those types, not as a hard combat trump — keep this in mind when battles get built.
 
-The effectiveness table already exists in `types.json` (2 = strong, 0.5 = weak) for battles to use later. Hatched creatures get exactly one type; two types only ever come from merging.
+The effectiveness table in `types.json` (2 = strong, 0.5 = weak) is now live — battles read it. Hatched creatures get exactly one type; two types only ever come from merging.
+
+## Battle system
+
+Party format: up to 3 player creatures vs. a generated enemy party of the same size, resolved as one deterministic, instant simulation (`runBattle` in `battle.ts`) rather than turn-by-turn input — this is what "auto-battle friendly" means for the party format the owner chose. It returns a full event log the UI plays back; nothing about combat needs a live connection or real-time input.
+
+- **Moves come from types, not species** (`src/data/moves.json`, `movesForCreature` in `content.ts`): a creature's available moves are the union of its 1-2 types' movepools. This means a cross-tier merge done purely to change a creature's types (see the merge Types rule) can also change its whole combat kit, and adding a new species costs zero new combat content.
+- **Physical vs special**: a move's `category` decides which stat pair resolves it — `physical` uses the attacker's `atk` vs the defender's `def`; `special` uses `spAtk` vs `spDef`. This is why species lean physical or special in their base stats — that was built ahead of this on purpose.
+- **Damage formula** (`computeDamage` in `battle.ts`): `power × (attackStat / defenceStat) × typeEffectiveness × critMultiplier × (±combatDamageVariance roll)`, floored at 1. `critChance`/`critDamage` are the creature's own stats — no separate combat-only crit system.
+- **Support moves**: three types grant a non-damage move instead of a second attacker archetype — Bloom heals whichever living ally (including itself) is lowest on HP, Lumen heals the whole party a smaller amount, Umbra deals damage and heals itself for a fraction of it (`drain`). Heals and drain never overheal past max HP. This is deliberately data-driven (a move's `kind`), not a `role` field on `Creature` — role is emergent from typing.
+- **AI** (same heuristic both sides, `chooseAction`): if a living ally's HP is below 50% of max and the actor knows a heal move, heal the neediest ally. Otherwise, attack the lowest-HP living enemy with whichever move has the best type-effectiveness multiplier against it. Turn order is every living combatant on both sides, fastest `spd` first, recomputed each round.
+- **Enemies are generated, not authored** (`encounter.ts`): `generateEnemyParty(rng, tier, size)` reuses the exact same stat-rolling pipeline as hatching (`rollAllStats` + the honest `cumulativeStatMultiplier`), so an enemy at tier T is built the way a player creature that legitimately reached tier T would be — no separate enemy-balance system to keep in sync.
+- Battle HP is **ephemeral** — a `Combatant` wrapper (`{ creature, currentHp, side }`) tracks HP for the duration of one battle only; the persisted `Creature.stats.hp` (max HP) is never mutated.
+- **Not implemented yet, deliberately**: no rewards/currency payout (currencies don't exist yet — see below), no PvP, no stat buffs/debuffs beyond heal/drain, no enemy roster variety beyond tier-scaled random generation, no accuracy-vs-heal-move balance pass. All fine to add later; don't invent them speculatively.
 
 ## Currencies (planned)
 
@@ -59,7 +72,7 @@ None are implemented yet. When they are, their amounts and prices belong in `src
 ## Build order
 
 1. ✅ Creatures and merging (slice 1)
-2. Battles
+2. ✅ Battles (slice 2 core loop — party format, moves, AI, generated enemies; rewards/PvP/roster variety still open)
 3. Idle income
 4. Gear and the forge
 5. Shop and IAP — last
@@ -69,10 +82,10 @@ Do not build ahead of this order without the owner asking for it.
 ## Where things live
 
 - `artifacts/mobile/` — the Expo app (the game).
-  - `src/game/` — pure game logic: `models.ts` (types), `rng.ts` (seeded RNG), `content.ts` (JSON access), `hatch.ts`, `merge.ts`, `save.ts` (serialise/validate saves).
-  - `src/data/` — species, types, and balance JSON.
-  - `src/screens/` — UI: `EggScreen.tsx` (slice-1 flow), `CreatureCard.tsx` (placeholder art), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage).
-  - `app/` — expo-router route files only; no logic.
+  - `src/game/` — pure game logic: `models.ts` (types), `rng.ts` (seeded RNG), `content.ts` (JSON access), `hatch.ts`, `merge.ts`, `save.ts` (serialise/validate saves), `battle.ts` (party battle resolution), `encounter.ts` (enemy generation).
+  - `src/data/` — species, types, moves, and balance JSON.
+  - `src/screens/` — UI: `EggScreen.tsx` (slice-1 flow), `BattleScreen.tsx` (slice-2 flow), `CreatureCard.tsx` (placeholder art), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage).
+  - `app/` — expo-router route files only; no logic. `index.tsx` → Hatchery, `battle.tsx` → Battle.
 - `artifacts/api-server/` — Express API scaffold. Only a `/api/healthz` endpoint so far; no game features use it yet, but it's real registered Replit deployment infrastructure (production build/run/health-check wired in its `.replit-artifact/artifact.toml`), not orphaned code — future server-authoritative features (battles, idle income, IAP validation) will likely build on it.
 - `lib/` — API workspace packages backing `api-server`: `api-spec` (OpenAPI source of truth), `api-client-react` + `api-zod` (generated — regenerate via codegen, never hand-edit), `db` (Drizzle schema, currently empty, scaffolded ahead of need).
 - `scripts/post-merge.sh` — the only thing left in `scripts/`. Run automatically by Replit after every pull (`.replit`'s `[postMerge]` hook): reinstalls deps and pushes DB schema changes. Not a pnpm package — invoked directly by path.
@@ -83,3 +96,4 @@ Do not build ahead of this order without the owner asking for it.
 - `react`/`react-dom` are pinned to exactly 19.1.0 (Expo requirement) and `@types/react`/`@types/react-dom` must stay on matching 19.1.x versions (catalog in `pnpm-workspace.yaml`).
 - `pnpm-workspace.yaml` excludes most platform-specific binaries, but win32-x64 esbuild/rollup are deliberately kept for local Windows development — do not re-exclude them.
 - Save data is versioned (`SAVE_VERSION` in `src/game/save.ts`, currently 2). **Changing the `Creature` shape requires a version bump AND a migration function in the same change**, or players lose their collections on update — `deserializeCollection` must keep accepting every old version it has ever shipped. See the v1→v2 migration in `save.ts` for the pattern to copy.
+- Local web preview (`expo start --web`) is not reliably testable outside Replit — the Windows dev box's browser tooling special-cases Expo's default port (8081) and refuses to start a second instance even when redirected elsewhere, so if that port is already held by another session there's no local workaround. `.claude/launch.json` + `.claude/mobile-web-wrapper.js` exist for whenever it's free. When it can't run, verify with `pnpm run check` and say so plainly rather than claiming a visual check that didn't happen — real UI verification for this project happens in Replit's own preview.
