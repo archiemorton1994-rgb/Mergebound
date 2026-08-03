@@ -24,16 +24,27 @@ Run from the repo root: typechecks every package, then runs all tests. It must p
 
 - **Tier** — both parents tier T → result is tier T+1. Different tiers → result is the *higher* tier, no increase.
 - **Types** — higher-tier parent's types first, then the other parent's; remove duplicates; keep the first two only. **A creature must never have more than two types.**
-- **Stats** — per-stat average of the parents, × the result tier's multiplier from `balance.json`, then a random roll of ±15% (`statRollVariance`), rounded, minimum 1.
+- **Stats** — per-stat average of the parents, ± a random roll of `statRollVariance` (±15%), rounded, minimum 1. **The tier multiplier from `balance.json` is applied ONLY when the merge actually raises the tier** (both parents same tier). A cross-tier merge gets no multiplier at all — averaging with a weaker parent dilutes the stronger parent's stats instead of boosting them. This is deliberate: it's what makes "merge like with like" the correct strategy and closes off cross-tier merging as a free stat pump. Deliberately merging across tiers is still a legitimate move for changing a creature's *types* (see Types rule above) — you're consciously trading stats for a type reroll, not getting both for free.
 - **Species** — inherited from the higher-tier parent. On a tier tie the "higher" parent is the one whose id sorts first (deterministic, no coin flip).
 - **Consumption** — both parents are removed from the collection and the result added, in one atomic update (`applyMerge` in `src/screens/CollectionContext.tsx`). The pure `merge()` itself does not touch the collection; it records `parentIds`.
 
+`balance.json`'s `tierMultipliers` are **per-merge step multipliers**, not cumulative ones — repeated same-tier merging compounds them, so real growth from tier 0 is much bigger than the raw table suggests (tier 6 lands around 2800x, by design — that compounding is the intended "big numbers" payoff of the merge loop). Never read `tierMultipliers` directly when you need a tier's true relative power (e.g. tuning enemy scaling later) — use `cumulativeStatMultiplier(tier)` from `content.ts` instead.
+
+## Stats
+
+Every creature has eight stats (`STAT_KEYS` in `models.ts` is the single source of truth for the list): `hp`, `atk`, `spAtk` (special attack), `def`, `spDef` (special defence), `spd`, `critChance` (%), `critDamage` (% damage multiplier on a crit). Species lean physical or special in `species.json`'s `baseStats` on purpose, ahead of battles being built.
+
+Every stat also carries a persisted **roll quality** (`statRolls`, 0-100 per stat, alongside `stats`) recording where that stat's most recent roll landed in its ±15% band — 100 is the best possible roll. This is what makes hunting a "perfect roll" a real, visible thing: a creature can have a 98 on `critChance` and a 6 on `hp` at the same time, because every stat rolls independently on every hatch or merge. `CreatureCard.tsx` colours a stat's displayed value by its roll quality (gold ≥90, dim ≤15) so this is visible without extra UI chrome.
+
 ## Type system
 
-Eight types, defined in `src/data/types.json`:
+Nine types, defined in `src/data/types.json`, each with a `rarity` (`common` | `rare` | `mythic`) that drives real hatch odds via `balance.json`'s `typeRarityWeights` (`pickWeighted` in `rng.ts`) — rare and mythic types are meaningfully harder to hatch, not just labelled differently:
 
-- Six core types in a weakness ring, each **strong against the next**: Ember → Bloom → Tide → Gale → Crag → Volt → Ember (and correspondingly weak against the previous).
-- Two rare types: **Umbra** and **Lumen**, strong against each other only.
+- Six **common** types in a weakness ring, each **strong against the next**: Ember → Bloom → Tide → Gale → Crag → Volt → Ember (and correspondingly weak against the previous).
+- Two **rare** types: **Umbra** and **Lumen**, strong against each other only.
+- One **mythic** type, rarer than either rare type: **Aether**. No effectiveness interactions defined yet — deliberately left neutral until battles are designed rather than guessed at now.
+
+Rarity is not meant to be raw combat power: a common-type creature should still be able to beat a rare/mythic one. Rarity should show up as better base stats and better special attacks on the species that roll those types, not as a hard combat trump — keep this in mind when battles get built.
 
 The effectiveness table already exists in `types.json` (2 = strong, 0.5 = weak) for battles to use later. Hatched creatures get exactly one type; two types only ever come from merging.
 
@@ -72,4 +83,4 @@ Do not build ahead of this order without the owner asking for it.
 - Package manager is **pnpm** (workspace). Replit runs `pnpm install --frozen-lockfile` after every pull, so any dependency change must include the updated `pnpm-lock.yaml` in the same commit.
 - `react`/`react-dom` are pinned to exactly 19.1.0 (Expo requirement) and `@types/react`/`@types/react-dom` must stay on matching 19.1.x versions (catalog in `pnpm-workspace.yaml`).
 - `pnpm-workspace.yaml` excludes most platform-specific binaries, but win32-x64 esbuild/rollup are deliberately kept for local Windows development — do not re-exclude them.
-- Save data is versioned (`SAVE_VERSION` in `src/game/save.ts`). Changing the `Creature` shape requires a version bump **and** a migration path, or players lose their collections.
+- Save data is versioned (`SAVE_VERSION` in `src/game/save.ts`, currently 2). **Changing the `Creature` shape requires a version bump AND a migration function in the same change**, or players lose their collections on update — `deserializeCollection` must keep accepting every old version it has ever shipped. See the v1→v2 migration in `save.ts` for the pattern to copy.
