@@ -458,7 +458,9 @@ describe('economy: asking the price of merge stones can never freeze the game', 
   // used to mean it never ended — on a phone that is a frozen game, not a wrong
   // number, so a nonsensical request now simply prices at nothing.
 
-  it('asking the price of an impossible number of merge stones answers instead of counting forever', () => {
+  it('asking the price of an impossible number of merge stones prices nothing instead of counting forever', () => {
+    // Refusing a nonsense count matches how a nonsense gold balance is already
+    // treated — both mean "buy nothing", so neither can be used as a way in.
     expect(stoneBundlePrice(Infinity, 0, 0)).toBe(0);
     expect(stoneBundlePrice(-Infinity, 0, 0)).toBe(0);
   });
@@ -486,7 +488,7 @@ describe('economy: asking the price of merge stones can never freeze the game', 
     expect(result.bought).toBe(economy.dailyCaps.stonesPurchased);
   });
 
-  it('asking how many merge stones an impossible allowance covers answers instead of counting forever', () => {
+  it('a nonsense daily allowance buys nothing, exactly as a nonsense amount of gold does', () => {
     expect(stonesAffordable(UNLIMITED_GOLD, 0, 0, Infinity)).toBe(0);
     expect(stonesAffordable(UNLIMITED_GOLD, 0, 0, NaN)).toBe(0);
   });
