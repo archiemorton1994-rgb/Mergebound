@@ -6,14 +6,29 @@
  */
 
 import balanceJson from '../data/balance.json';
+import hybridMovesJson from '../data/hybridMoves.json';
 import movesJson from '../data/moves.json';
 import speciesJson from '../data/species.json';
 import typesJson from '../data/types.json';
-import type { Creature, MoveDef, SpeciesDef, TypeDef, TypeRarity } from './models';
+import type {
+  Creature,
+  DamageMove,
+  DrainMove,
+  HealMove,
+  HybridMove,
+  MoveDef,
+  SpeciesDef,
+  TypeDef,
+  TypeRarity,
+} from './models';
+
+/** A move granted by exactly one type (everything except hybrid moves). */
+export type SingleTypeMove = DamageMove | HealMove | DrainMove;
 
 export const allSpecies: SpeciesDef[] = speciesJson.species;
 export const allTypes: TypeDef[] = typesJson.types as TypeDef[];
-export const allMoves: MoveDef[] = movesJson.moves as MoveDef[];
+export const allMoves: SingleTypeMove[] = movesJson.moves as SingleTypeMove[];
+export const allHybridMoves: HybridMove[] = hybridMovesJson.hybridMoves as HybridMove[];
 
 interface EffectivenessEntry {
   attacker: string;
@@ -48,14 +63,35 @@ export function typeWeight(type: TypeDef): number {
   return balance.typeRarityWeights[type.rarity];
 }
 
-/** Every move a type grants, in types.json move-authoring order. */
-export function movesForType(typeId: string): MoveDef[] {
+/** Every move a type grants, in moves.json authoring order. */
+export function movesForType(typeId: string): SingleTypeMove[] {
   return allMoves.filter((m) => m.typeId === typeId);
 }
 
-/** Every move available to a creature — the union of its 1-2 types' movepools. */
+function pairKey(a: string, b: string): string {
+  return [a, b].sort().join('+');
+}
+
+const hybridMoveByPair = new Map<string, HybridMove>(
+  allHybridMoves.map((m) => [pairKey(m.typeIds[0], m.typeIds[1]), m]),
+);
+
+/** The signature move for a pair of types, if one is authored — order doesn't matter. */
+export function hybridMoveFor(typeA: string, typeB: string): HybridMove | undefined {
+  return hybridMoveByPair.get(pairKey(typeA, typeB));
+}
+
+/**
+ * Every move available to a creature: the union of its 1-2 types' movepools,
+ * plus — for a creature with exactly two types — the signature hybrid move
+ * for that combination, if one exists. This is the actual "perk" of merging
+ * into a specific dual type: a move neither parent type had on its own.
+ */
 export function movesForCreature(creature: Creature): MoveDef[] {
-  return creature.types.flatMap((t) => movesForType(t));
+  const base: MoveDef[] = creature.types.flatMap((t) => movesForType(t));
+  const [a, b] = creature.types;
+  const hybrid = creature.types.length === 2 && a && b ? hybridMoveFor(a, b) : undefined;
+  return hybrid ? [...base, hybrid] : base;
 }
 
 /**
@@ -80,6 +116,21 @@ export function typeEffectiveness(attackerTypeId: string, defenderTypeIds: strin
     (mult, defenderTypeId) => mult * singleTypeEffectiveness(attackerTypeId, defenderTypeId),
     1,
   );
+}
+
+/**
+ * The effectiveness multiplier for any move (including hybrids) against a
+ * defender. A hybrid move averages its two component types' multipliers
+ * instead of stacking them — that keeps it reliably decent rather than a
+ * coin flip between a 4x blowout and a 0.25x dud.
+ */
+export function effectivenessForMove(move: MoveDef, defenderTypeIds: string[]): number {
+  if (move.kind === 'hybrid') {
+    const [t1, t2] = move.typeIds;
+    return (typeEffectiveness(t1, defenderTypeIds) + typeEffectiveness(t2, defenderTypeIds)) / 2;
+  }
+  if (move.kind === 'heal') return 1;
+  return typeEffectiveness(move.typeId, defenderTypeIds);
 }
 
 /**

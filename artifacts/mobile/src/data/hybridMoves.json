@@ -1,0 +1,48 @@
+{
+  "comment": "One signature move per possible pair of the 9 types (36 combos) — the payoff for merging into a specific dual type, per the owner's brief. Only granted to a creature with exactly 2 types (see content.ts's hybridMoveFor / movesForCreature). Effectiveness averages both component types' multipliers against the defender rather than stacking them, so a hybrid move is reliably decent instead of a coin flip between great and terrible. typeIds order doesn't matter — hybridMoveFor normalises the lookup.",
+  "hybridMoves": [
+    { "id": "hybrid-ember-bloom",  "name": "Wildfire Bloom",       "typeIds": ["ember", "bloom"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-tide",   "name": "Steam Eruption",       "typeIds": ["ember", "tide"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-gale",   "name": "Firestorm Gale",       "typeIds": ["ember", "gale"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-crag",   "name": "Magma Crush",          "typeIds": ["ember", "crag"],   "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-volt",   "name": "Plasma Discharge",     "typeIds": ["ember", "volt"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-umbra",  "name": "Hellfire Shroud",      "typeIds": ["ember", "umbra"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-lumen",  "name": "Solar Flare",          "typeIds": ["ember", "lumen"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-ember-aether", "name": "Starforge Blaze",      "typeIds": ["ember", "aether"], "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-bloom-tide",   "name": "Verdant Torrent",      "typeIds": ["bloom", "tide"],   "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-gale",   "name": "Pollen Squall",        "typeIds": ["bloom", "gale"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-crag",   "name": "Rootquake",            "typeIds": ["bloom", "crag"],   "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-volt",   "name": "Static Bloom",         "typeIds": ["bloom", "volt"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-umbra",  "name": "Blightvine",           "typeIds": ["bloom", "umbra"],  "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-lumen",  "name": "Radiant Bloom",        "typeIds": ["bloom", "lumen"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-bloom-aether", "name": "Cosmic Sprout",        "typeIds": ["bloom", "aether"], "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-tide-gale",    "name": "Typhoon Surge",        "typeIds": ["tide", "gale"],    "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-tide-crag",    "name": "Mudslide",             "typeIds": ["tide", "crag"],    "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-tide-volt",    "name": "Storm Current",        "typeIds": ["tide", "volt"],    "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-tide-umbra",   "name": "Abyssal Undertow",     "typeIds": ["tide", "umbra"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-tide-lumen",   "name": "Prismatic Tide",       "typeIds": ["tide", "lumen"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-tide-aether",  "name": "Void Current",         "typeIds": ["tide", "aether"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-gale-crag",    "name": "Sandstorm Slam",       "typeIds": ["gale", "crag"],    "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-gale-volt",    "name": "Thunderstorm Gale",    "typeIds": ["gale", "volt"],    "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-gale-umbra",   "name": "Phantom Gale",         "typeIds": ["gale", "umbra"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-gale-lumen",   "name": "Aurora Gust",          "typeIds": ["gale", "lumen"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-gale-aether",  "name": "Stellar Cyclone",      "typeIds": ["gale", "aether"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-crag-volt",    "name": "Magnetic Quake",       "typeIds": ["crag", "volt"],    "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-crag-umbra",   "name": "Obsidian Crush",       "typeIds": ["crag", "umbra"],   "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-crag-lumen",   "name": "Crystal Smite",        "typeIds": ["crag", "lumen"],   "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+    { "id": "hybrid-crag-aether",  "name": "Meteor Slam",          "typeIds": ["crag", "aether"],  "kind": "hybrid", "category": "physical", "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-volt-umbra",   "name": "Shadowbolt",           "typeIds": ["volt", "umbra"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-volt-lumen",   "name": "Prism Bolt",           "typeIds": ["volt", "lumen"],   "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-volt-aether",  "name": "Ion Storm",            "typeIds": ["volt", "aether"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-umbra-lumen",  "name": "Eclipse Requiem",      "typeIds": ["umbra", "lumen"],  "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+    { "id": "hybrid-umbra-aether", "name": "Voidnight Collapse",   "typeIds": ["umbra", "aether"], "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 },
+
+    { "id": "hybrid-lumen-aether", "name": "Celestial Dawn",       "typeIds": ["lumen", "aether"], "kind": "hybrid", "category": "special",  "power": 60, "accuracy": 90 }
+  ]
+}

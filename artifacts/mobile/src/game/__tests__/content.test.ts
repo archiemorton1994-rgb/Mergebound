@@ -6,13 +6,16 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  allHybridMoves,
   allMoves,
   allSpecies,
   allTypes,
   balance,
   cumulativeStatMultiplier,
+  effectivenessForMove,
   getSpecies,
   getType,
+  hybridMoveFor,
   movesForCreature,
   movesForType,
   tierMultiplier,
@@ -99,10 +102,11 @@ describe('type hatch weights', () => {
 });
 
 describe('moves', () => {
-  it('every type grants at least one damage move', () => {
+  it('every type grants exactly 2 physical and 2 special damage moves', () => {
     for (const t of allTypes) {
       const damageMoves = movesForType(t.id).filter((m) => m.kind === 'damage');
-      expect(damageMoves.length, t.id).toBeGreaterThan(0);
+      expect(damageMoves.filter((m) => m.category === 'physical').length, t.id).toBe(2);
+      expect(damageMoves.filter((m) => m.category === 'special').length, t.id).toBe(2);
     }
   });
 
@@ -126,12 +130,18 @@ describe('moves', () => {
     expect(supportTypeIds).toEqual(['bloom', 'lumen', 'umbra'].sort());
   });
 
-  it('movesForCreature returns the union of a dual-typed creature’s two movepools', () => {
+  it('movesForCreature returns the union of a dual-typed creature’s two movepools, plus its hybrid move', () => {
     const creature = makeCreature({ types: ['ember', 'bloom'] });
     const moves = movesForCreature(creature);
-    expect(moves.some((m) => m.typeId === 'ember')).toBe(true);
-    expect(moves.some((m) => m.typeId === 'bloom')).toBe(true);
-    expect(moves).toHaveLength(movesForType('ember').length + movesForType('bloom').length);
+    expect(moves.some((m) => m.kind !== 'hybrid' && m.typeId === 'ember')).toBe(true);
+    expect(moves.some((m) => m.kind !== 'hybrid' && m.typeId === 'bloom')).toBe(true);
+    expect(moves.filter((m) => m.kind === 'hybrid')).toHaveLength(1);
+    expect(moves).toHaveLength(movesForType('ember').length + movesForType('bloom').length + 1);
+  });
+
+  it('a single-typed creature has no hybrid move', () => {
+    const creature = makeCreature({ types: ['ember'] });
+    expect(movesForCreature(creature).some((m) => m.kind === 'hybrid')).toBe(false);
   });
 
   it('every heal/drain fraction is a sane, positive proportion', () => {
@@ -139,6 +149,39 @@ describe('moves', () => {
       if (m.kind === 'heal') expect(m.healFraction).toBeGreaterThan(0);
       if (m.kind === 'drain') expect(m.drainFraction).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('hybrid moves', () => {
+  it('every one of the 36 possible type pairs has an authored hybrid move', () => {
+    const ids = allTypes.map((t) => t.id);
+    let count = 0;
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = ids[i];
+        const b = ids[j];
+        if (!a || !b) continue;
+        expect(hybridMoveFor(a, b), `${a}+${b}`).toBeDefined();
+        count++;
+      }
+    }
+    expect(count).toBe(36);
+  });
+
+  it('hybrid move lookup does not care about argument order', () => {
+    expect(hybridMoveFor('ember', 'tide')).toBe(hybridMoveFor('tide', 'ember'));
+  });
+
+  it('every hybrid move id and name is unique', () => {
+    expect(new Set(allHybridMoves.map((m) => m.id)).size).toBe(allHybridMoves.length);
+    expect(new Set(allHybridMoves.map((m) => m.name)).size).toBe(allHybridMoves.length);
+  });
+
+  it('effectivenessForMove averages a hybrid move’s two component types instead of stacking them', () => {
+    const move = hybridMoveFor('ember', 'volt');
+    if (!move) throw new Error('expected an ember+volt hybrid move');
+    // ember->bloom = 2, volt->bloom = 1 (no entry) -> average 1.5
+    expect(effectivenessForMove(move, ['bloom'])).toBeCloseTo(1.5, 9);
   });
 });
 

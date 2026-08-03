@@ -14,8 +14,14 @@ import { balance, movesForCreature } from '../content';
 import {
   chooseAction,
   computeDamage,
+  currentActor,
+  getWinner,
+  isBattleOver,
   resolveMove,
   runBattle,
+  startBattle,
+  takeAutoTurn,
+  takeTurn,
   type Combatant,
 } from '../battle';
 import type { DamageMove, DrainMove, HealMove } from '../models';
@@ -247,6 +253,7 @@ describe('chooseAction: the AI heuristic', () => {
     // so this mainly proves a move typed for the matchup gets chosen over a mismatched one.
     const target: Combatant = { creature: makeCreature({ types: ['bloom'] }), currentHp: 40, side: 'enemy' };
     const { move } = chooseAction(self, [self], [target], moves);
+    if (move.kind === 'hybrid') throw new Error('single-typed creature should never pick a hybrid move');
     expect(move.typeId).toBe('ember');
   });
 });
@@ -284,5 +291,55 @@ describe('runBattle: full simulation', () => {
     for (const entry of result.log) {
       expect(['player', 'enemy']).toContain(entry.actorSide);
     }
+  });
+});
+
+describe('manual battle state machine (startBattle/currentActor/takeTurn)', () => {
+  it('driving takeAutoTurn to completion produces the exact same result as runBattle', () => {
+    const player = [makeCreature({ id: 'p1' }), makeCreature({ id: 'p2' })];
+    const enemy = [makeCreature({ id: 'e1' }), makeCreature({ id: 'e2' })];
+
+    const auto = runBattle(player, enemy, createRng(7));
+
+    const state = startBattle(player, enemy);
+    const rng = createRng(7);
+    while (!isBattleOver(state)) {
+      takeAutoTurn(state, rng);
+    }
+    expect({ winner: getWinner(state), log: state.log, rounds: state.round }).toEqual(auto);
+  });
+
+  it('lets a caller override the AI for one turn (manual control)', () => {
+    const player = [makeCreature({ id: 'p1', stats: { ...makeCreature().stats, spd: 999 } })];
+    const enemy = [makeCreature({ id: 'e1', stats: { ...makeCreature().stats, hp: 40, def: 999, spDef: 999 } })];
+    const state = startBattle(player, enemy);
+
+    const actor = currentActor(state);
+    expect(actor?.creature.id).toBe('p1'); // fastest goes first
+
+    const moves = movesForCreature(actor!.creature);
+    const chosenMove = moves.find((m) => m.kind === 'damage' && m.category === 'physical');
+    if (!chosenMove) throw new Error('expected a physical move');
+    const enemyCombatant = state.combatants.find((c) => c.creature.id === 'e1');
+    takeTurn(state, chosenMove, enemyCombatant, sequenceRng([0, 0, 0.5]));
+
+    expect(state.log).toHaveLength(1);
+    expect(state.log[0]?.moveName).toBe(chosenMove.name);
+    expect(enemyCombatant?.currentHp).toBeLessThan(40);
+  });
+
+  it('isBattleOver / getWinner agree with a battle actually being finished', () => {
+    const player = [makeCreature({ stats: { ...makeCreature().stats, atk: 500, spAtk: 500 } })];
+    const enemy = [makeCreature({ stats: { ...makeCreature().stats, hp: 5, def: 1, spDef: 1 } })];
+    const state = startBattle(player, enemy);
+    expect(isBattleOver(state)).toBe(false);
+    const rng = createRng(1);
+    let guard = 0;
+    while (!isBattleOver(state) && guard < 200) {
+      takeAutoTurn(state, rng);
+      guard++;
+    }
+    expect(isBattleOver(state)).toBe(true);
+    expect(getWinner(state)).toBe('player');
   });
 });

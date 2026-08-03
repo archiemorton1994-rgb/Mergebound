@@ -67,39 +67,54 @@ export type MoveCategory = 'physical' | 'special';
 interface MoveBase {
   id: string;
   name: string;
-  /** The type (in types.json) that grants this move. */
-  typeId: string;
   /** 0-100 chance to hit. */
   accuracy: number;
 }
 
-/** A plain damage move against one enemy. */
+/** A plain damage move against one enemy, granted by a single type. */
 export interface DamageMove extends MoveBase {
   kind: 'damage';
   category: MoveCategory;
-  /** Damage scale — see mergedDamage in battle.ts for the full formula. */
+  typeId: string;
+  /** Damage scale — see computeDamage in battle.ts for the full formula. */
   power: number;
 }
 
-/** A support move that restores HP instead of dealing damage. */
+/** A support move that restores HP instead of dealing damage, granted by a single type. */
 export interface HealMove extends MoveBase {
   kind: 'heal';
+  typeId: string;
   /** 'lowest-ally' heals whichever living ally (including the user) has the lowest HP%; 'party' heals every living ally a little. */
   target: 'lowest-ally' | 'party';
   /** Fraction of the target's max HP restored, e.g. 0.3 = 30%. Never overheals past max. */
   healFraction: number;
 }
 
-/** A damage move that also heals its user for a fraction of the damage dealt. */
+/** A damage move that also heals its user for a fraction of the damage dealt, granted by a single type. */
 export interface DrainMove extends MoveBase {
   kind: 'drain';
   category: MoveCategory;
+  typeId: string;
   power: number;
   /** Fraction of the damage dealt that heals the user, e.g. 0.5 = 50%. */
   drainFraction: number;
 }
 
-export type MoveDef = DamageMove | HealMove | DrainMove;
+/**
+ * A signature move only a dual-typed creature knows, drawing on both of its
+ * types at once — the "perk" of merging into a specific type combination.
+ * Effectiveness is the average of both component types' multipliers against
+ * the defender (see effectivenessForMove in content.ts), so it's usually
+ * decent against everything rather than a hard counter or a dead loss.
+ */
+export interface HybridMove extends MoveBase {
+  kind: 'hybrid';
+  category: MoveCategory;
+  typeIds: [string, string];
+  power: number;
+}
+
+export type MoveDef = DamageMove | HealMove | DrainMove | HybridMove;
 
 /** A random source: returns a float in [0, 1). Seeded implementations live in rng.ts. */
 export type Rng = () => number;
