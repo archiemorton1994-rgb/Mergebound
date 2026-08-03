@@ -1,25 +1,32 @@
 /**
- * Save/load serialisation. Pure functions — they turn a collection into a
+ * Save/load serialisation. Pure functions — they turn game state into a
  * string and back, with validation. Actual storage (AsyncStorage) happens
  * in the UI layer (src/screens/CollectionContext.tsx).
  * No React, no UI imports.
  *
  * Save data is versioned. Bumping SAVE_VERSION without a migration wipes
  * every player's collection on their next update — always add a migration
- * path in the same change that changes the Creature shape.
+ * path in the same change that changes what's saved.
  */
 
 import { STAT_KEYS, type Creature, type Stats } from './models';
 
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
+
+export interface SaveData {
+  collection: Creature[];
+  /** Merges since the last natural (or pity-forced) perfect stat roll — see merge.ts's mergeWithPity. */
+  mergePity: number;
+}
 
 interface SaveFile {
   version: number;
   collection: Creature[];
+  mergePity: number;
 }
 
-export function serializeCollection(collection: Creature[]): string {
-  const file: SaveFile = { version: SAVE_VERSION, collection };
+export function serializeCollection(data: SaveData): string {
+  const file: SaveFile = { version: SAVE_VERSION, collection: data.collection, mergePity: data.mergePity };
   return JSON.stringify(file);
 }
 
@@ -47,6 +54,10 @@ function isCreature(value: unknown): value is Creature {
     Array.isArray(c['parentIds']) &&
     c['parentIds'].every((p) => typeof p === 'string')
   );
+}
+
+function isValidMergePity(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 // --- v1 → v2 migration -----------------------------------------------------
@@ -125,12 +136,12 @@ function migrateCreatureV1ToV2(old: CreatureV1): Creature {
 }
 
 /**
- * Parse a saved string back into a collection, migrating older save
- * versions forward. Throws with a clear message if the data is corrupt or
- * from a version newer than this build understands — callers decide how to
- * surface that. Never silently returns partial data.
+ * Parse a saved string back into game state, migrating older save versions
+ * forward. Throws with a clear message if the data is corrupt or from a
+ * version newer than this build understands — callers decide how to surface
+ * that. Never silently returns partial data.
  */
-export function deserializeCollection(raw: string): Creature[] {
+export function deserializeCollection(raw: string): SaveData {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -147,18 +158,30 @@ export function deserializeCollection(raw: string): Creature[] {
     throw new Error('Save data has an unexpected shape');
   }
 
+  // v1: pre-special-stats. No mergePity concept existed yet — starts at 0.
   if (version === 1) {
     if (!rawCollection.every(isCreatureV1)) {
       throw new Error('Save data contains an invalid creature');
     }
-    return rawCollection.map(migrateCreatureV1ToV2);
+    return { collection: rawCollection.map(migrateCreatureV1ToV2), mergePity: 0 };
+  }
+
+  // v2: current Creature shape, but saved before the pity system existed.
+  if (version === 2) {
+    if (!rawCollection.every(isCreature)) {
+      throw new Error('Save data contains an invalid creature');
+    }
+    return { collection: rawCollection, mergePity: 0 };
   }
 
   if (version === SAVE_VERSION) {
     if (!rawCollection.every(isCreature)) {
       throw new Error('Save data contains an invalid creature');
     }
-    return rawCollection;
+    if (!isValidMergePity(file['mergePity'])) {
+      throw new Error('Save data has an invalid mergePity value');
+    }
+    return { collection: rawCollection, mergePity: file['mergePity'] };
   }
 
   throw new Error(`Unsupported save version: ${String(version)}`);

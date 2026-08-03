@@ -14,7 +14,16 @@
 
 import { describe, expect, it } from 'vitest';
 import { balance, cumulativeStatMultiplier, tierMultiplier } from '../content';
-import { dominantParent, merge, mergedStats, mergedTier, mergedTypes } from '../merge';
+import {
+  MERGE_PITY_THRESHOLD,
+  dominantParent,
+  hasNaturalPerfectRoll,
+  merge,
+  mergeWithPity,
+  mergedStats,
+  mergedTier,
+  mergedTypes,
+} from '../merge';
 import { STAT_KEYS } from '../models';
 import { createRng } from '../rng';
 import { makeCreature } from './helpers';
@@ -269,5 +278,58 @@ describe('merge: whole-result behaviour', () => {
     for (const k of STAT_KEYS) {
       expect(typeof result.statRolls[k]).toBe('number');
     }
+  });
+});
+
+describe('merge: forced perfect stat (the mechanism the pity system uses)', () => {
+  it('forces exactly the requested stat to a 100 roll and its best possible value', () => {
+    const a = makeCreature({ tier: 1, stats: { ...makeCreature().stats, hp: 40 } });
+    const b = makeCreature({ tier: 1, stats: { ...makeCreature().stats, hp: 60 } });
+    const result = merge(a, b, createRng(3), 'hp');
+    expect(result.statRolls.hp).toBe(100);
+    const avg = (40 + 60) / 2;
+    const mult = tierMultiplier(mergedTier(a, b));
+    expect(result.stats.hp).toBe(Math.round(avg * mult * (1 + balance.statRollVariance)));
+  });
+
+  it('leaves every other stat rolling normally, not forced', () => {
+    const a = makeCreature();
+    const b = makeCreature();
+    const result = merge(a, b, createRng(3), 'hp');
+    const otherKeys = STAT_KEYS.filter((k) => k !== 'hp');
+    expect(otherKeys.some((k) => result.statRolls[k] !== 100)).toBe(true);
+  });
+});
+
+describe('mergeWithPity: guaranteed perfect roll', () => {
+  it('below the threshold, the counter just increments and nothing is forced', () => {
+    const midpointRng = () => 0.5; // exact midpoint of the variance band -> rollPercent 50 always
+    const result = mergeWithPity(makeCreature(), makeCreature(), midpointRng, 3);
+    expect(result.pityTriggered).toBe(false);
+    expect(result.mergesSincePerfectRoll).toBe(4);
+    expect(hasNaturalPerfectRoll(result.creature)).toBe(false);
+  });
+
+  it('forces a perfect roll once the threshold is reached, and resets the counter', () => {
+    const result = mergeWithPity(makeCreature(), makeCreature(), createRng(1), MERGE_PITY_THRESHOLD - 1);
+    expect(result.pityTriggered).toBe(true);
+    expect(result.mergesSincePerfectRoll).toBe(0);
+    expect(hasNaturalPerfectRoll(result.creature)).toBe(true);
+  });
+
+  it('a natural perfect roll resets the counter early, without counting as pity', () => {
+    const maxRng = () => 1; // pushes every stat's roll factor to the top of the band
+    const result = mergeWithPity(makeCreature(), makeCreature(), maxRng, 2);
+    expect(result.pityTriggered).toBe(false);
+    expect(hasNaturalPerfectRoll(result.creature)).toBe(true);
+    expect(result.mergesSincePerfectRoll).toBe(0);
+  });
+
+  it('is deterministic given the same parents, rng seed and pity count', () => {
+    const a = makeCreature();
+    const b = makeCreature();
+    const r1 = mergeWithPity(a, b, createRng(5), 3);
+    const r2 = mergeWithPity(a, b, createRng(5), 3);
+    expect(r1).toEqual(r2);
   });
 });

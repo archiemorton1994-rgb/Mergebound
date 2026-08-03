@@ -17,7 +17,7 @@ import { Link } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { balance, getType } from '@/src/game/content';
 import { generateEggBatch } from '@/src/game/hatch';
-import { merge } from '@/src/game/merge';
+import { MERGE_PITY_THRESHOLD, mergeWithPity } from '@/src/game/merge';
 import { STAT_KEYS, type Creature, type Rng, type Stats } from '@/src/game/models';
 import { createRng } from '@/src/game/rng';
 import { CreatureCard } from '@/src/screens/CreatureCard';
@@ -33,7 +33,7 @@ function haptic() {
 
 export function EggScreen() {
   const insets = useSafeAreaInsets();
-  const { collection, loading, loadError, addCreatures, applyMerge } = useCollection();
+  const { collection, mergePity, loading, loadError, addCreatures, applyMerge, setMergePity } = useCollection();
 
   // One seeded rng per session batch. Reseeding happens on "New eggs".
   const [seed, setSeed] = useState(() => Date.now() % 0x7fffffff);
@@ -44,6 +44,7 @@ export function EggScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [hatched, setHatched] = useState<Creature[]>([]);
   const [result, setResult] = useState<Creature | null>(null);
+  const [pityTriggered, setPityTriggered] = useState(false);
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = (Platform.OS === 'web' ? 34 : insets.bottom) + 24;
@@ -67,9 +68,11 @@ export function EggScreen() {
     haptic();
     const [a, b] = hatched;
     if (!a || !b) return;
-    const merged = merge(a, b, rng);
-    applyMerge(a.id, b.id, merged);
-    setResult(merged);
+    const { creature, mergesSincePerfectRoll, pityTriggered: triggered } = mergeWithPity(a, b, rng, mergePity);
+    applyMerge(a.id, b.id, creature);
+    setMergePity(mergesSincePerfectRoll);
+    setResult(creature);
+    setPityTriggered(triggered);
     setPhase('merged');
   }
 
@@ -79,6 +82,7 @@ export function EggScreen() {
     setSelected([]);
     setHatched([]);
     setResult(null);
+    setPityTriggered(false);
     setPhase('eggs');
   }
 
@@ -160,6 +164,11 @@ export function EggScreen() {
           {hatched.map((c) => (
             <CreatureCard key={c.id} creature={c} />
           ))}
+          <Text style={styles.pityText}>
+            {mergePity + 1 >= MERGE_PITY_THRESHOLD
+              ? 'This merge is guaranteed a perfect roll!'
+              : `${MERGE_PITY_THRESHOLD - mergePity - 1} more merge${MERGE_PITY_THRESHOLD - mergePity - 1 === 1 ? '' : 's'} until a guaranteed perfect roll`}
+          </Text>
           <PrimaryButton label="Merge these two" onPress={doMerge} />
         </View>
       ) : null}
@@ -167,6 +176,11 @@ export function EggScreen() {
       {phase === 'merged' && result ? (
         <View style={{ gap: 12 }}>
           <Text style={styles.sectionLabel}>Merge result</Text>
+          {pityTriggered ? (
+            <View style={styles.pityBanner}>
+              <Text style={styles.pityBannerText}>Perfect roll guaranteed! ✦</Text>
+            </View>
+          ) : null}
           <CreatureCard creature={result} deltas={parentAvg ?? undefined} />
           <Text style={styles.mutedText}>
             Stat changes shown against the average of its two parents. Both parents were
@@ -317,5 +331,22 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  pityText: {
+    color: '#ffd966',
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  pityBanner: {
+    backgroundColor: 'rgba(255,217,102,0.18)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  pityBannerText: {
+    color: '#ffd966',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
   },
 });

@@ -6,8 +6,11 @@
 import { getSpecies, tierMultiplier } from './content';
 import { rollStat } from './hatch';
 import { balance } from './content';
-import { STAT_KEYS, type Creature, type Rng, type Stats } from './models';
-import { makeId } from './rng';
+import { STAT_KEYS, type Creature, type Rng, type Stats, type StatKey } from './models';
+import { makeId, pickOne } from './rng';
+
+/** How many merges without a natural perfect roll before one is forced. See mergeWithPity below. */
+export const MERGE_PITY_THRESHOLD = 10;
 
 /**
  * Decide which parent is "dominant" (the higher-tier parent).
@@ -44,8 +47,19 @@ export function mergedTypes(a: Creature, b: Creature): string[] {
  * Every stat gets its own independent ±variance roll (see rollStat), which
  * is what makes chasing a "perfect roll" on e.g. critChance meaningful even
  * when the rest of a merge's rolls are mediocre.
+ *
+ * forcedPerfectStat, if given, skips the random roll for that one stat and
+ * gives it the best possible value instead (rollPercent 100) — this is how
+ * the merge pity system (mergeWithPity below) guarantees a perfect roll
+ * without needing a separate code path.
  */
-export function mergedStats(a: Creature, b: Creature, tier: number, rng: Rng): { stats: Stats; statRolls: Stats } {
+export function mergedStats(
+  a: Creature,
+  b: Creature,
+  tier: number,
+  rng: Rng,
+  forcedPerfectStat?: StatKey,
+): { stats: Stats; statRolls: Stats } {
   const tierIncreased = a.tier === b.tier;
   const mult = tierIncreased ? tierMultiplier(tier) : 1;
   const v = balance.statRollVariance;
@@ -53,6 +67,11 @@ export function mergedStats(a: Creature, b: Creature, tier: number, rng: Rng): {
   const statRolls = {} as Stats;
   for (const key of STAT_KEYS) {
     const avg = (a.stats[key] + b.stats[key]) / 2;
+    if (key === forcedPerfectStat) {
+      stats[key] = Math.max(1, Math.round(avg * mult * (1 + v)));
+      statRolls[key] = 100;
+      continue;
+    }
     const { value, rollPercent } = rollStat(avg * mult, rng, v);
     stats[key] = value;
     statRolls[key] = rollPercent;
@@ -65,11 +84,11 @@ export function mergedStats(a: Creature, b: Creature, tier: number, rng: Rng): {
  * The caller is responsible for removing both parents from the collection
  * and adding the result (see CollectionContext in src/screens/).
  */
-export function merge(a: Creature, b: Creature, rng: Rng): Creature {
+export function merge(a: Creature, b: Creature, rng: Rng, forcedPerfectStat?: StatKey): Creature {
   const tier = mergedTier(a, b);
   const dom = dominantParent(a, b);
   const species = getSpecies(dom.speciesId);
-  const { stats, statRolls } = mergedStats(a, b, tier, rng);
+  const { stats, statRolls } = mergedStats(a, b, tier, rng, forcedPerfectStat);
   return {
     id: makeId(rng),
     speciesId: species.id,
@@ -79,5 +98,42 @@ export function merge(a: Creature, b: Creature, rng: Rng): Creature {
     stats,
     statRolls,
     parentIds: [a.id, b.id],
+  };
+}
+
+/** True if any stat on this creature rolled the maximum possible (100) this merge/hatch. */
+export function hasNaturalPerfectRoll(creature: Creature): boolean {
+  return STAT_KEYS.some((key) => creature.statRolls[key] === 100);
+}
+
+export interface MergeWithPityResult {
+  creature: Creature;
+  /** Merges since the last natural (or pity-forced) perfect roll — persist this and pass it back in next time. */
+  mergesSincePerfectRoll: number;
+  /** True if this merge's perfect roll was forced by pity rather than rolled naturally. */
+  pityTriggered: boolean;
+}
+
+/**
+ * Merge, but with a pity system: if MERGE_PITY_THRESHOLD merges pass with no
+ * stat naturally rolling 100 anywhere, the next merge guarantees one
+ * (randomly chosen) stat rolls perfect. This turns bad luck into its own
+ * countdown instead of an unbounded grind, without ever taking away the
+ * chance of an early natural perfect roll resetting the counter.
+ */
+export function mergeWithPity(
+  a: Creature,
+  b: Creature,
+  rng: Rng,
+  mergesSincePerfectRoll: number,
+): MergeWithPityResult {
+  const pityTriggered = mergesSincePerfectRoll + 1 >= MERGE_PITY_THRESHOLD;
+  const forcedStat = pityTriggered ? pickOne(rng, STAT_KEYS) : undefined;
+  const creature = merge(a, b, rng, forcedStat);
+  const resetByLuck = !pityTriggered && hasNaturalPerfectRoll(creature);
+  return {
+    creature,
+    mergesSincePerfectRoll: pityTriggered || resetByLuck ? 0 : mergesSincePerfectRoll + 1,
+    pityTriggered,
   };
 }
