@@ -128,6 +128,18 @@ Do not build ahead of this order without the owner asking for it.
   - `src/screens/` — UI: `HomeScreen.tsx` (the hub), `EggScreen.tsx` (hatch + merge), `BattleScreen.tsx`, `CreatureCard.tsx` (portrait + stats), `CreatureSprite.tsx` (SVG creature art), `CurrencyHud.tsx` (the always-visible wallet), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage), and `ui/kit.tsx` (shared Screen/Panel/Button/AppText/haptics).
   - `app/` — expo-router route files only; no logic. `(tabs)/_layout.tsx` is the shell, `(tabs)/index.tsx` → Home, `(tabs)/hatchery.tsx` → Hatchery, `battle.tsx` → Battle.
 
+## First run and the Binder
+
+The tutorial runs on **one route** (`app/onboarding.tsx` → `OnboardingScreen`), a switch on the step saved in `SaveData.onboarding.step`. That is not a shortcut: with a route per step, a player who force-quits can resume on an address that disagrees with their saved step. The saved step is the only source of truth for where they are.
+
+**Order matters and is settled.** The player hatches, hatches again, and merges *before* the game asks them for anything — three taps to the best moment the game has. Character creation comes afterwards, when they have a reason to care, and opens already wearing the element of the creature they just made (`defaultAppearanceFor`). A form on a cold start is where first sessions get abandoned; so is an empty text field, which is why the name is always pre-filled and keeping it is a proper button rather than a skip.
+
+- `src/game/onboarding.ts` owns the rules. `onboardingRedirectTarget` returns `null` when the current route is already allowed, so `OnboardingGuard` in `app/_layout.tsx` can run it on every navigation without risking an infinite redirect — which on a phone is a frozen screen, not a visible error. The guard waits for `loading`, because before the save is read every player looks brand new.
+- **Tutorial eggs are fixed by a seed** drawn once in `stampFreshSave` (the one place the clock is read). Seed `0` means "never drawn"; if nothing drew it, every player on earth would open the game to the same three eggs. A resumed tutorial shows the exact eggs the player was choosing between.
+- **The Binder is procedural vector art**, same split as creatures: `src/art/binderArt.ts` decides what they look like (pure, tested), `src/screens/BinderSprite.tsx` holds the geometry. Every id lookup falls back to a default rather than throwing, so a save referencing a renamed hairstyle still renders a person.
+- The Binder's accent colour is read from `types.json` via `accentTypeId`. `binder.json` deliberately carries **no colour list** for that axis, so adding a tenth type gives the Binder a tenth accent for free.
+- The appearance is **saved at the moment of the first merge**, not only when the player confirms it — otherwise quitting in between loses the element they just earned, which is the whole point of the beat.
+
 ## How the app is put together (UI)
 
 - **`constants/tokens.ts` is to colour what `balance.json` is to numbers.** No screen may contain a raw colour, radius or font size. `constants/colors.ts` now derives from it, which is what stopped the error and not-found screens rendering white in a dark game.

@@ -20,7 +20,7 @@
  */
 
 import { payableIdleMs } from './clock';
-import { creaturePower, cumulativeStatMultiplier, economy } from './content';
+import { creaturePower, economy } from './content';
 import type { Creature, EconomyState, Wallet } from './models';
 
 const MS_PER_MINUTE = 60_000;
@@ -66,10 +66,32 @@ export function idleRoster(collection: Creature[]): Creature[] {
  */
 export function idleGoldPerHour(collection: Creature[]): number {
   const powerUnits = idleRoster(collection).reduce(
-    (sum, creature) => sum + cumulativeStatMultiplier(creature.tier),
+    (sum, creature) => sum + tierEarning(creature.tier),
     0,
   );
   return economy.idle.goldPerHourPerPowerUnit * powerUnits;
+}
+
+/**
+ * What one earner at a given tier is worth per hour, in power units.
+ *
+ * This is `tierEarningBase ^ tier` and NOT cumulativeStatMultiplier, which is
+ * what every other gold payout in the game uses. The exception is deliberate and
+ * load-bearing: merging two creatures into one must always RAISE income, because
+ * being pulled back into the merge loop is the entire reason idle income exists.
+ * Two earners at tier T pay 2 x base^T and the tier T+1 they become pays
+ * base^(T+1), so the base has to be greater than 2 or a merge costs the player
+ * income. cumulativeStatMultiplier fails that at the very first step —
+ * tierMultipliers[1] is 1.5, so two tier-0s were worth more than the tier-1 they
+ * made, and a new player with six or fewer creatures watched their income DROP
+ * for doing the one thing the game is about.
+ *
+ * A negative or non-finite tier (only reachable from a hand-edited save) earns
+ * the tier-0 rate rather than something nonsensical.
+ */
+export function tierEarning(tier: number): number {
+  if (!Number.isFinite(tier) || tier <= 0) return 1;
+  return economy.idle.tierEarningBase ** tier;
 }
 
 export interface IdlePreview {

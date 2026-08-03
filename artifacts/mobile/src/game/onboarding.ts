@@ -148,6 +148,80 @@ export function tutorialEggs(seed: number): Creature[] {
 }
 
 /**
+ * The steps that put eggs in front of the player, in the order they are played.
+ * One egg is opened per step, so this list is also "how many of the tutorial's
+ * eggs the player is meant to end up holding before the first merge" — which is
+ * deliberately NOT the same number as how many eggs are laid out to choose from
+ * (balance.json's tutorial.eggCount). Two of three get opened; the third is the
+ * one they said no to, and that is what makes it a choice.
+ */
+export const TUTORIAL_EGG_STEPS: readonly OnboardingStep[] = ['first-egg', 'second-egg'];
+
+/** Is this a step where the player is being asked to tap an egg? */
+export function isTutorialEggStep(step: OnboardingStep): boolean {
+  return TUTORIAL_EGG_STEPS.includes(step);
+}
+
+/** Where the tutorial goes once the eggs are done with. Derived from the step order, never restated. */
+function stepAfterTutorialEggs(): OnboardingStep {
+  const last = TUTORIAL_EGG_STEPS[TUTORIAL_EGG_STEPS.length - 1];
+  return last === undefined ? 'complete' : nextStep(last);
+}
+
+/**
+ * The tutorial eggs that are still on offer: the ones the player has not
+ * already opened, matched by id against what they own.
+ *
+ * This is a game rule and it lives here rather than in the screen, for the
+ * usual reason plus a specific one: a screen that works out for itself which
+ * eggs are left has no way of noticing when the answer is "none of them", and
+ * an egg step with no eggs is a screen with nothing on it to press.
+ */
+export function tutorialEggsRemaining(seed: number, collection: Creature[]): Creature[] {
+  const owned = new Set(collection.map((c) => c.id));
+  return tutorialEggs(seed).filter((egg) => !owned.has(egg.id));
+}
+
+/**
+ * The step a save should ACTUALLY be showing, given what the player already
+ * owns — the saved step reconciled with the saved collection.
+ *
+ * Why this has to exist: hatching writes a creature to the save the instant the
+ * egg is tapped, but the step only moves on when the player presses past the
+ * reveal. Force-quitting while the new creature is on screen therefore persists
+ * a creature without persisting the step, and the two disagree from then on.
+ * The player resumes on the same egg step with one fewer egg in front of them,
+ * and doing it again empties the row entirely: an egg step with no eggs, no
+ * button, and a redirect guard that puts them straight back on it if they try
+ * to leave. That is a new player permanently unable to play, fixable only by
+ * deleting the app's data.
+ *
+ * The rule that closes it: progress is counted from the collection (which is
+ * written first and never lies) rather than from the step (which can lag by one
+ * write). A step whose eggs are used up resolves FORWARD to the merge instead
+ * of drawing an empty choice, so there is always something to press.
+ *
+ * Deliberately only egg steps are reconciled. After the merge the parents are
+ * consumed, so "how many tutorial eggs do they still hold" stops describing
+ * progress and would send a player who had already merged back to the start.
+ */
+export function stepForTutorialProgress(
+  state: OnboardingState,
+  collection: Creature[],
+): OnboardingStep {
+  if (!isTutorialEggStep(state.step)) return state.step;
+
+  const offered = tutorialEggs(state.seed).length;
+  const remaining = tutorialEggsRemaining(state.seed, collection).length;
+  const opened = offered - remaining;
+
+  // Nothing left to choose from, or they already opened one per egg step: the
+  // egg phase is over however the step got out of step with the collection.
+  if (remaining <= 0 || opened >= TUTORIAL_EGG_STEPS.length) return stepAfterTutorialEggs();
+  return TUTORIAL_EGG_STEPS[opened] ?? stepAfterTutorialEggs();
+}
+
+/**
  * Should this one-off tip be shown?
  *
  * Two rules, and they are the same rule twice: never teach the same thing

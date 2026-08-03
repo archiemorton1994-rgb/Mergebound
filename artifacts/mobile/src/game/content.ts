@@ -104,6 +104,8 @@ export const economy = {
   idle: {
     rosterSize: economyJson.idle.rosterSize as number,
     goldPerHourPerPowerUnit: economyJson.idle.goldPerHourPerPowerUnit as number,
+    /** Each earner pays this to the power of its tier. Must exceed 2 — see economy.json. */
+    tierEarningBase: economyJson.idle.tierEarningBase as number,
     offlineCapHours: economyJson.idle.offlineCapHours as number,
     minCollectMinutes: economyJson.idle.minCollectMinutes as number,
   },

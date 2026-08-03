@@ -36,6 +36,8 @@
     "comment": "Only the strongest rosterSize creatures earn, so hoarding weak creatures is worth nothing and merging always raises income. GOLD ONLY, deliberately — idle is the one clock-derived faucet, and clock-derived income must never pay anything that guarantees an outcome. goldPerHour = goldPerHourPerPowerUnit * sum of cumulativeStatMultiplier(tier) across the earning roster. Six tier-1s earn 108/hour; six tier-3s earn 760/hour. Eight hours banks roughly 8-10 merge stones' worth of gold at every tier.",
     "rosterSize": 6,
     "goldPerHourPerPowerUnit": 12,
+    "tierEarningBaseComment": "Idle income pays tierEarningBase^tier per earner, NOT cumulativeStatMultiplier. It has to be its own curve because of one hard requirement: merging two creatures into one must always RAISE income, and that is the entire reason idle income exists — it is the pull back into the merge loop. Two creatures at tier T pay 2 x base^T; the tier T+1 they merge into pays base^(T+1). So the base must exceed 2, at every tier, or merging LOSES income. cumulativeStatMultiplier fails that test at the very first step: tierMultipliers[1] is 1.5, so two tier-0s (2.0) are worth more than the tier-1 they become (1.5) — a brand-new player with six or fewer creatures would watch their income drop for doing the one thing the game is about. 2.2 clears the bar at every tier with room to spare, and matches the shape of the stat curve from tier 2 upward.",
+    "tierEarningBase": 2.2,
     "offlineCapHours": 8,
     "minCollectMinutes": 1
   },

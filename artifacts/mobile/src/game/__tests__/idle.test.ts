@@ -8,7 +8,33 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { cumulativeStatMultiplier, economy } from '../content';
+import { tierEarning } from '../idle';
+
+describe('merging always raises idle income', () => {
+  // This is the property idle income exists to create. It was broken once:
+  // payouts scaled on cumulativeStatMultiplier, whose first step is 1.5, so two
+  // tier-0 creatures (1.0 + 1.0) were worth more than the tier-1 they merged
+  // into. A brand-new player with six or fewer creatures watched their income
+  // fall for doing the one thing the game is about.
+  it('one creature always earns more than the two it was merged from', () => {
+    for (let tier = 0; tier <= 8; tier++) {
+      const twoBelow = tierEarning(tier) * 2;
+      const oneAbove = tierEarning(tier + 1);
+      expect(oneAbove, `merging two tier-${tier} creatures must not lose income`).toBeGreaterThan(
+        twoBelow,
+      );
+    }
+  });
+
+  it('a creature from a hand-edited save with a nonsense tier still earns something sane', () => {
+    for (const tier of [-1, -100, NaN, Infinity, -Infinity]) {
+      expect(tierEarning(tier), `tier ${tier}`).toBe(1);
+    }
+  });
+});
+
+import { creaturePower, cumulativeStatMultiplier, economy } from '../content';
+import { hatchEgg } from '../hatch';
 import { collectIdle, idleGoldPerHour, idleRoster, previewIdle } from '../idle';
 import { merge } from '../merge';
 import { STAT_KEYS, type Creature, type EconomyState, type Stats, type Wallet } from '../models';
@@ -55,11 +81,16 @@ function creatureWithAtk(id: string, atk: number): Creature {
   return makeCreature({ id, stats: { ...defaultStats, atk } });
 }
 
-/** goldPerHourPerPowerUnit x the sum of every earner's true tier power. */
+/**
+ * goldPerHourPerPowerUnit x the sum of every earner's tier earning rate.
+ *
+ * Idle deliberately uses its own curve rather than cumulativeStatMultiplier —
+ * see tierEarning and economy.json for why merging would otherwise LOSE a new
+ * player income.
+ */
 function expectedGoldPerHour(tiers: number[]): number {
   return (
-    economy.idle.goldPerHourPerPowerUnit *
-    tiers.reduce((sum, tier) => sum + cumulativeStatMultiplier(tier), 0)
+    economy.idle.goldPerHourPerPowerUnit * tiers.reduce((sum, tier) => sum + tierEarning(tier), 0)
   );
 }
 
@@ -112,9 +143,10 @@ describe('how much idle income a collection earns per hour', () => {
     expect(idleGoldPerHour([])).toBe(0);
   });
 
-  it('six tier-one creatures earn a hundred and eight gold an hour, exactly as economy.json promises', () => {
+  it('six tier-one creatures earn what economy.json promises they will', () => {
     const collection = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => creatureAtTier(id, 1));
-    expect(idleGoldPerHour(collection)).toBeCloseTo(108, 9);
+    // 6 earners x 2.2 (tierEarningBase^1) x 12 gold per power unit.
+    expect(idleGoldPerHour(collection)).toBeCloseTo(158.4, 9);
   });
 
   it('a hoard of weak creatures adds nothing to hourly income', () => {
@@ -321,5 +353,81 @@ describe('collecting idle income', () => {
 
     expect(result.goldCollected).toBe(0);
     expect(result.wallet).toEqual(wallet);
+  });
+});
+
+// ---------------------------------------------------------------- TEMP REPRO
+const REPRO_OUT =
+  'C:/Users/archi/AppData/Local/Temp/claude/C--Users-archi-OneDrive-Desktop-Grow/85113c3e-4a0e-4fed-9d1d-aa402c0f2fef/scratchpad/repro.txt';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fs = (globalThis as any).process ? await import('node:fs') : null;
+function say(line: string) {
+  fs?.appendFileSync(REPRO_OUT, line + '\n');
+}
+
+describe('TEMP REPRO', () => {
+  it('repro 1: small-collection tier-0 merge', () => {
+    const lines: string[] = [];
+    for (let n = 2; n <= 10; n++) {
+      const collection = Array.from({ length: n }, (_, i) => creatureAtTier(`c${i}`, 0));
+      const before = idleGoldPerHour(collection);
+      const [first, second, ...rest] = collection;
+      const merged = merge(first!, second!, createRng(3));
+      const after = idleGoldPerHour([merged, ...rest]);
+      lines.push(`n=${n} tier${merged.tier} before=${before} after=${after}`);
+    }
+    say('REPRO1\n' + lines.join('\n'));
+  });
+
+  it('repro 2: roster ranks by power, pays by tier', () => {
+    // Hunt honestly through the real pipeline for a cross-tier-merged tier-1
+    // whose creaturePower falls below a hatched tier-0's.
+    const rng = createRng(12345);
+    const tier0s: Creature[] = [];
+    for (let i = 0; i < 400; i++) tier0s.push(hatchEgg(rng));
+    let weakTier1: Creature | undefined;
+    for (let i = 0; i + 2 < tier0s.length; i += 3) {
+      const t1 = merge(tier0s[i]!, tier0s[i + 1]!, rng); // same tier -> tier 1
+      const rerolled = merge(t1, tier0s[i + 2]!, rng); // cross tier -> tier 1, no mult
+      if (creaturePower(rerolled) < 139) {
+        weakTier1 = rerolled;
+        break;
+      }
+    }
+    const strongTier0s = [...tier0s]
+      .sort((a, b) => creaturePower(b) - creaturePower(a))
+      .slice(0, 6);
+    say(
+      'REPRO2 weakTier1 power=' +
+        (weakTier1 ? creaturePower(weakTier1) : 'none') +
+        ' tier=' +
+        weakTier1?.tier +
+        ' top tier0 powers=' +
+        strongTier0s.map(creaturePower).join(','),
+    );
+    if (!weakTier1) return;
+    const six = [weakTier1, ...strongTier0s.slice(1, 6)];
+    const before = idleGoldPerHour(six);
+    const seven = [...six, strongTier0s[0]!];
+    const after = idleGoldPerHour(seven);
+    say(
+      `REPRO2 six=${before} seven=${after} rosterBefore=${idleRoster(six).map((c) => c.tier).join('')} rosterAfter=${idleRoster(seven).map((c) => c.tier).join('')}`,
+    );
+  });
+
+  it('repro 3: rounding loss on frequent collects', () => {
+    const collection = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => creatureAtTier(id, 1));
+    const one = collectIdle(economyAt(T0), freshWallet(), collection, T0 + HOUR);
+
+    let state = economyAt(T0);
+    let wallet = freshWallet();
+    let total = 0;
+    for (let m = 1; m <= 60; m++) {
+      const r = collectIdle(state, wallet, collection, T0 + m * MINUTE);
+      state = r.economy;
+      wallet = r.wallet;
+      total += r.goldCollected;
+    }
+    say(`REPRO3 single=${one.goldCollected} sixtyMinutely=${total}`);
   });
 });

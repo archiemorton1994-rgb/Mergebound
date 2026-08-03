@@ -100,6 +100,14 @@ First step taken: creatures are now drawn as procedural vector portraits rather 
 2. **Damage did not grow with tier while health did.** The attack/defence ratio cancels in an even fight, so a tier-6 mirror match needed ~1516 hits against a 50-round cap: an unwinnable draw. Damage now scales on the attacker's cumulative multiplier. **Fixing bug 1 alone would have exposed this and made every high-tier battle a permanent stalemate** — the absurd crit multiplier was the only thing punching through the inflated health.
 3. **The battle engine could freeze.** A round's turn order is fixed at the start of the round, so creatures killed mid-round stay queued; if every remaining entry was dead while both sides still had someone alive, the engine stopped producing an actor and never advanced the round, so `runBattle` span forever. Reachable in any 2-v-2 where both sides trade kills in one round. On a device that is a frozen game.
 
+**Found by an adversarial review on 2026-08-03 and still open.** None are live yet (idle income and the collection tools are not wired to any screen), but each is cheaper to fix before they are than after:
+
+- **`idleRoster` picks who earns by `creaturePower` but pays them by tier.** Those two orderings can disagree, so the roster can bench a creature that would have paid more than the one keeping it out — and the player-facing "these are earning" list can show their biggest earner as not earning. Pick and pay must use the same ordering. Fix when idle income gets a screen.
+- **`canMerge` and `suggestMergePartners` default `lockedIds` to an empty array**, so the padlock — the only guard on an irreversible action — fails OPEN if a caller forgets the argument. Make the parameter required so forgetting it is a compile error rather than a silently unlocked creature.
+- **Idle income leaks to rounding on frequent collection.** Gold is floored per collect and the timer resets, so sixty one-minute collects pay noticeably less than one hourly collect. Direction is safe (it can never pay more), so it is a leak rather than an exploit — but `minCollectMinutes` at 1 does not actually prevent what its comment says it prevents.
+
+A separate finding against `sanitizeBinderName` (splitting emoji, letting control characters through) was **checked and found to be wrong** — that module already handles surrogate pairs, the C1 block and zero-width characters. Recorded so it is not "fixed" twice. Agent reports are evidence, not verdicts; reproduce before acting.
+
 Remaining gaps:
 
 - No rewards or currency payout from battles — the wallet persists, but nothing earns or spends yet (PLAN.md Step 1).

@@ -186,6 +186,16 @@ interface PurchaseRun {
  * `stoneBundlePrice` quotes a bundle nobody has bought yet. It is spelled as
  * null rather than Infinity because an infinite budget is indistinguishable
  * from a corrupt gold value, and this function refuses those.
+ *
+ * `limit` gets the same treatment for the same reason, and it needs it more:
+ * on the null-budget path `limit` is the ONLY thing that ends this loop, so a
+ * non-finite one spins forever. On a phone an endless loop is a frozen game
+ * rather than a wrong number, so a nonsensical count buys nothing instead.
+ * The second guard is the other end of the same bound: the escalator overflows
+ * to an infinite price long before a huge finite count runs out, and every
+ * further step just adds infinity to infinity. Stopping there returns the
+ * identical answer — a budget-bound run already breaks at that price, and an
+ * unbudgeted one has already reached Infinity — without the wait.
  */
 function purchaseRun(
   budget: number | null,
@@ -194,7 +204,7 @@ function purchaseRun(
   limit: number,
 ): PurchaseRun {
   const gold = budget === null ? null : Number.isFinite(budget) ? Math.max(0, budget) : 0;
-  const maxStones = Math.max(0, Math.floor(limit));
+  const maxStones = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
   let bought = 0;
   let goldSpent = 0;
   while (bought < maxStones) {
@@ -202,6 +212,7 @@ function purchaseRun(
     if (gold !== null && goldSpent + price > gold) break;
     goldSpent += price;
     bought += 1;
+    if (!Number.isFinite(goldSpent)) break;
   }
   return { bought, goldSpent };
 }
@@ -247,6 +258,16 @@ export interface StonePurchase {
  * is a sentence a player can act on, whereas a failed transaction on the
  * bottleneck currency reads as the game being broken. Callers must show
  * `bought` rather than assume they got what they asked for.
+ *
+ * The day's tally is read through a floor of zero rather than trusted. Nothing
+ * in this module can drive it negative, but a hand-edited save can — save.ts
+ * accepts any finite number there — and a negative tally would do two things at
+ * once: enlarge the cap by however far below zero it went, and reset the price
+ * escalator to its cheapest step for those extra stones. This cap is the meter
+ * on the whole economy (see point 3 in the header), so it defends itself here
+ * instead of relying on the save file being honest, exactly as dayIndex is a
+ * monotonic high-water mark instead of trusting the device clock. The clamped
+ * value is also what gets written back, so one purchase repairs the tally.
  */
 export function buyMergeStones(
   economyState: EconomyState,
@@ -254,16 +275,12 @@ export function buyMergeStones(
   count: number,
   highestTier: number,
 ): StonePurchase {
-  const remainingCap = Math.max(0, economy.dailyCaps.stonesPurchased - economyState.stonesPurchasedToday);
+  const boughtToday = Math.max(0, economyState.stonesPurchasedToday);
+  const remainingCap = Math.max(0, economy.dailyCaps.stonesPurchased - boughtToday);
   const wanted = Math.min(Math.max(0, Math.floor(count)), remainingCap);
-  const { bought, goldSpent } = purchaseRun(
-    wallet.gold,
-    highestTier,
-    economyState.stonesPurchasedToday,
-    wanted,
-  );
+  const { bought, goldSpent } = purchaseRun(wallet.gold, highestTier, boughtToday, wanted);
   return {
-    economy: { ...economyState, stonesPurchasedToday: economyState.stonesPurchasedToday + bought },
+    economy: { ...economyState, stonesPurchasedToday: boughtToday + bought },
     wallet: earn(spend(wallet, { gold: goldSpent }), { mergeStones: bought }),
     bought,
     goldSpent,
@@ -284,13 +301,20 @@ export interface StoneCredit {
  * `earn(wallet, { mergeStones: credited })`. Splitting it that way means a
  * reward screen can show the player what was withheld — an unexplained
  * shortfall on the currency the whole game meters would read as a bug.
+ *
+ * The day's tally is floored at zero before it is read, for the same reason
+ * `buyMergeStones` does it: a negative tally in an edited save would hand the
+ * player that much extra room on top of the cap. Both halves of the daily
+ * ceiling have to defend themselves, or the one that doesn't becomes the way
+ * around the one that does.
  */
 export function creditEarnedStones(economyState: EconomyState, amount: number): StoneCredit {
-  const room = Math.max(0, economy.dailyCaps.stonesEarned - economyState.stonesEarnedToday);
+  const earnedToday = Math.max(0, economyState.stonesEarnedToday);
+  const room = Math.max(0, economy.dailyCaps.stonesEarned - earnedToday);
   const offered = Math.max(0, Math.floor(Number.isFinite(amount) ? amount : 0));
   const credited = Math.min(offered, room);
   return {
-    economy: { ...economyState, stonesEarnedToday: economyState.stonesEarnedToday + credited },
+    economy: { ...economyState, stonesEarnedToday: earnedToday + credited },
     credited,
   };
 }

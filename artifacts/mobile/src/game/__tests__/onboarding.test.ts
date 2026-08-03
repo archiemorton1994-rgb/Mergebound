@@ -10,19 +10,23 @@
 
 import { describe, expect, it } from 'vitest';
 import { balance } from '../content';
-import type { OnboardingState, OnboardingStep } from '../models';
+import type { Creature, OnboardingState, OnboardingStep } from '../models';
 import {
   BATTLE_ROUTE,
   ONBOARDING_ROUTE,
   ONBOARDING_STEPS,
+  TUTORIAL_EGG_STEPS,
   freshOnboardingSeed,
   isComplete,
+  isTutorialEggStep,
   markTipSeen,
   nextStep,
   onboardingRedirectTarget,
   shouldShowTip,
   stepForExistingSave,
+  stepForTutorialProgress,
   tutorialEggs,
+  tutorialEggsRemaining,
 } from '../onboarding';
 import { stampFreshSave, withDefaults } from '../save';
 import { makeCreature } from './helpers';
@@ -90,6 +94,133 @@ describe('onboarding: the eggs a resumed tutorial offers', () => {
     expect(onboardingRedirectTarget(saved, '/')).toBe(ONBOARDING_ROUTE);
     // ...and the eggs waiting for them are the same ones they were choosing from.
     expect(tutorialEggs(saved.seed)).toEqual(tutorialEggs(4242));
+  });
+});
+
+describe('onboarding: an interrupted egg choice always leaves an egg to tap', () => {
+  // Hatching writes the new creature to the save the moment the egg is tapped,
+  // but the step only moves on when the player presses past the reveal. Everything
+  // below is about that gap: a force-quit in it saves a creature and not a step.
+  const seed = 4242;
+  const eggs = tutorialEggs(seed);
+
+  /** A saved tutorial that has kept its step while the collection moved on. */
+  function saved(step: OnboardingStep): OnboardingState {
+    return makeOnboarding({ step, seed });
+  }
+
+  it('the eggs still on offer are the ones the player has not already opened', () => {
+    expect(tutorialEggsRemaining(seed, [])).toEqual(eggs);
+    expect(tutorialEggsRemaining(seed, [eggs[0]!])).toEqual(eggs.slice(1));
+    expect(tutorialEggsRemaining(seed, eggs)).toEqual([]);
+  });
+
+  it('creatures from outside the tutorial never take eggs off the table', () => {
+    expect(tutorialEggsRemaining(seed, [makeCreature(), makeCreature()])).toEqual(eggs);
+  });
+
+  it('a brand-new player whose phone dies mid-reveal is still shown a way forward', () => {
+    // Same path a real first run takes: the seed is the one the app itself drew.
+    const fresh = stampFreshSave(
+      withDefaults({ collection: [], mergePity: 0 }),
+      INSTALLED_AT,
+      INSTALL_DAY,
+    );
+    const theirEggs = tutorialEggs(fresh.onboarding.seed);
+    const afterOneReveal = stepForTutorialProgress(fresh.onboarding, [theirEggs[0]!]);
+    expect(afterOneReveal).toBe('second-egg');
+    expect(tutorialEggsRemaining(fresh.onboarding.seed, [theirEggs[0]!]).length).toBeGreaterThan(0);
+    expect(stepForTutorialProgress(fresh.onboarding, theirEggs)).toBe('first-merge');
+  });
+
+  it('a player who force-quits while looking at their first hatched creature comes back to the second egg', () => {
+    // Saved step still says first-egg; the save already holds one creature.
+    expect(stepForTutorialProgress(saved('first-egg'), [eggs[0]!])).toBe('second-egg');
+  });
+
+  it('a player who has opened both their eggs is taken to the merge, whatever step was saved', () => {
+    for (const step of TUTORIAL_EGG_STEPS) {
+      expect(stepForTutorialProgress(saved(step), eggs.slice(0, 2)), step).toBe('first-merge');
+    }
+  });
+
+  it('opening every egg the tutorial has leads to the merge instead of an empty screen', () => {
+    // The exact dead end: three creatures owned, the saved step still on an egg.
+    // Before this rule existed the screen drew a heading, no eggs and no button,
+    // and the redirect guard put the player straight back on it. No way out.
+    expect(stepForTutorialProgress(saved('second-egg'), eggs)).toBe('first-merge');
+    expect(stepForTutorialProgress(saved('first-egg'), eggs)).toBe('first-merge');
+  });
+
+  it('the tutorial never leaves a player on an egg step with no egg left to tap', () => {
+    for (const step of TUTORIAL_EGG_STEPS) {
+      for (let opened = 0; opened <= eggs.length; opened += 1) {
+        const held = eggs.slice(0, opened);
+        const resolved = stepForTutorialProgress(saved(step), held);
+        if (!isTutorialEggStep(resolved)) continue;
+        expect(
+          tutorialEggsRemaining(seed, held).length,
+          `${step} with ${opened} opened resolved to ${resolved}`,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('a player part-way through the eggs is left exactly where they were', () => {
+    expect(stepForTutorialProgress(saved('first-egg'), [])).toBe('first-egg');
+    expect(stepForTutorialProgress(saved('second-egg'), [eggs[0]!])).toBe('second-egg');
+  });
+
+  it('working out where a player belongs a second time never moves them again', () => {
+    for (const step of TUTORIAL_EGG_STEPS) {
+      for (let opened = 0; opened <= eggs.length; opened += 1) {
+        const held = eggs.slice(0, opened);
+        const once = stepForTutorialProgress(saved(step), held);
+        const twice = stepForTutorialProgress(makeOnboarding({ step: once, seed }), held);
+        expect(twice, `${step} with ${opened} opened`).toBe(once);
+      }
+    }
+  });
+
+  it('every step after the eggs is left exactly as the save recorded it', () => {
+    const afterTheEggs = ONBOARDING_STEPS.filter((step) => !isTutorialEggStep(step));
+    for (const step of afterTheEggs) {
+      expect(stepForTutorialProgress(saved(step), []), step).toBe(step);
+      expect(stepForTutorialProgress(saved(step), eggs), step).toBe(step);
+    }
+  });
+
+  it('a player who force-quits at every single egg reveal still reaches the merge holding two creatures', () => {
+    // The whole egg phase, replayed with the app killed after every hatch and
+    // nothing but the saved collection to work from on each resume.
+    let step: OnboardingStep = 'first-egg';
+    let collection: Creature[] = [];
+
+    for (let resume = 0; resume <= eggs.length + 1; resume += 1) {
+      step = stepForTutorialProgress(makeOnboarding({ step, seed }), collection);
+      if (!isTutorialEggStep(step)) break;
+      const onOffer = tutorialEggsRemaining(seed, collection);
+      // There is always something to press — this is the property that matters.
+      expect(onOffer.length, `resume ${resume} on ${step}`).toBeGreaterThan(0);
+      collection = [...collection, onOffer[0]!];
+      // ...and the app dies here, before the step is written.
+    }
+
+    expect(step).toBe('first-merge');
+    expect(collection).toHaveLength(TUTORIAL_EGG_STEPS.length);
+    // Exactly two, so the merge has both its parents and no stray creature is
+    // left behind by a merge that only ever consumes the first two.
+    expect(collection).toHaveLength(2);
+  });
+
+  it('the egg phase knows about every egg step the tutorial lists, in the order they are played', () => {
+    const eggStepsInOrder = ONBOARDING_STEPS.filter((step) => step.endsWith('-egg'));
+    expect([...TUTORIAL_EGG_STEPS]).toEqual(eggStepsInOrder);
+    expect(ONBOARDING_STEPS.slice(0, TUTORIAL_EGG_STEPS.length)).toEqual(eggStepsInOrder);
+  });
+
+  it('the tutorial lays out more eggs than it asks the player to open, so the choice is a real one', () => {
+    expect(balance.tutorial.eggCount).toBeGreaterThan(TUTORIAL_EGG_STEPS.length);
   });
 });
 

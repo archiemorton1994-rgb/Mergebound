@@ -201,21 +201,78 @@ export function generateBinderName(rng: Rng): string {
 }
 
 /**
- * Swap control characters for spaces: they render as stray boxes, and a pasted
- * newline would break the HUD line the name sits on. 32 and 127 are the ASCII
- * boundaries of the printable range, not tunable numbers.
+ * Everything a name is not allowed to contain, as ranges of code points. None
+ * of these are tunable numbers — they are Unicode's own boundaries, not ours,
+ * which is why they live here rather than in binder.json.
+ *
+ * Two kinds of character, both of which have to go for the same reason: the
+ * name is drawn as one short line of text in the HUD on every screen, and
+ * neither kind can be seen there.
+ *  - Control characters render as stray boxes, and a pasted newline would break
+ *    the line the name sits on.
+ *  - Zero-width and blank characters render as nothing at all, which is worse:
+ *    they make a name that looks empty but is not, so it slips past the "never
+ *    leave the player nameless" fallback below and leaves a permanent gap where
+ *    the name should be.
  */
-function withoutControlCharacters(value: string): string {
+const UNRENDERABLE_RANGES: readonly (readonly [number, number])[] = [
+  [0x00, 0x1f], // C0 controls, including tab and newline
+  [0x7f, 0x9f], // DEL and the C1 control block — arrives by pasting out of a word processor
+  [0xad, 0xad], // soft hyphen
+  [0x200b, 0x200f], // zero-width space and joiners, left/right marks
+  [0x202a, 0x202e], // bidirectional embeds and overrides, which reverse the text after them
+  [0x2060, 0x206f], // word joiner, invisible operators, directional isolates
+  [0x2800, 0x2800], // braille pattern blank
+  [0x3164, 0x3164], // Hangul filler
+  [0xd800, 0xdfff], // half of a character, orphaned — see cutWithoutSplittingACharacter
+  [0xfeff, 0xfeff], // zero-width no-break space
+];
+
+function isUnrenderable(code: number): boolean {
+  return UNRENDERABLE_RANGES.some(([lowest, highest]) => code >= lowest && code <= highest);
+}
+
+/**
+ * Swap every unrenderable character for a space.
+ *
+ * A space rather than nothing, so the collapse-and-trim that follows disposes of
+ * them for free: between two words they become the single space they already
+ * look like, and a name made of nothing else collapses to the empty string and
+ * takes a suggestion instead.
+ *
+ * Iterating with for...of walks whole code points, so a correctly paired emoji
+ * arrives here as one character and is never mistaken for a stray surrogate —
+ * only a genuinely orphaned half of one falls in the surrogate range.
+ */
+function withoutUnrenderableCharacters(value: string): string {
   let out = '';
   for (const ch of value) {
-    const code = ch.codePointAt(0) ?? 0;
-    out += code < 32 || code === 127 ? ' ' : ch;
+    out += isUnrenderable(ch.codePointAt(0) ?? 0) ? ' ' : ch;
   }
   return out;
 }
 
 /**
- * Tidy a name the player typed: strip control characters, collapse runs of
+ * Cut to the length cap without slicing a character in half.
+ *
+ * The cap counts UTF-16 units — JavaScript's own idea of a string's length, and
+ * what the HUD's width budget was measured against — but an emoji is two of
+ * them, so a cut can land between an emoji's two halves and leave one behind.
+ * Half a character renders as a box, survives being saved and reloaded intact,
+ * and is not repaired by tidying the name again. A Binder is named exactly once
+ * during onboarding and the game has no rename screen, so that box would be on
+ * screen, on every screen, forever.
+ */
+function cutWithoutSplittingACharacter(value: string, maxUnits: number): string {
+  const cut = value.slice(0, maxUnits);
+  const lastUnit = cut.charCodeAt(cut.length - 1);
+  // The value being cut has already had orphaned halves swapped out, so a
+  // trailing leading-surrogate can only be one this cut has just orphaned.
+  return lastUnit >= 0xd800 && lastUnit <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/**
+ * Tidy a name the player typed: strip anything unrenderable, collapse runs of
  * whitespace, trim, and cut to binder.json's nameMaxLength.
  *
  * If nothing usable survives, hand back a suggestion rather than an empty
@@ -223,13 +280,18 @@ function withoutControlCharacters(value: string): string {
  * nothing later in the game forces the player to go back and fix it. Which
  * suggestion it is matters far less than that there is one, so an omitted rng
  * simply takes the first parts in the list.
+ *
+ * "Nothing usable" has to mean "nothing anybody can see", not "no characters at
+ * all": a name of zero-width characters is a non-empty string that draws as the
+ * same gap. Stripping them above is what makes the emptiness test below true of
+ * both.
  */
 export function sanitizeBinderName(raw: string, rng?: Rng): string {
   // Defensive String(): this value can come straight off a hand-edited save.
-  const collapsed = withoutControlCharacters(String(raw ?? ''))
+  const collapsed = withoutUnrenderableCharacters(String(raw ?? ''))
     .replace(/\s+/g, ' ')
     .trim();
   // Trim again after cutting, in case the cut landed in the middle of a space.
-  const capped = collapsed.slice(0, binderContent.nameMaxLength).trim();
+  const capped = cutWithoutSplittingACharacter(collapsed, binderContent.nameMaxLength).trim();
   return capped.length > 0 ? capped : generateBinderName(rng ?? (() => 0));
 }

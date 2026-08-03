@@ -313,6 +313,17 @@ describe('suggesting a name', () => {
   });
 });
 
+/**
+ * True if the name contains an orphaned half of a character — the thing a cut
+ * through the middle of an emoji leaves behind. It draws as an empty box.
+ */
+function hasHalfACharacter(name: string): boolean {
+  return Array.from(name).some((ch) => {
+    const code = ch.codePointAt(0) ?? 0;
+    return code >= 0xd800 && code <= 0xdfff;
+  });
+}
+
 describe('tidying up a name the player typed', () => {
   it('leaves a sensible name exactly as it was typed', () => {
     expect(sanitizeBinderName('Wren Ashford')).toBe('Wren Ashford');
@@ -367,5 +378,56 @@ describe('tidying up a name the player typed', () => {
 
   it('uses the given rng to pick the suggestion it falls back to', () => {
     expect(sanitizeBinderName('', createRng(3))).toBe(generateBinderName(createRng(3)));
+  });
+
+  it('keeps an emoji in a name that is short enough to fit', () => {
+    expect(sanitizeBinderName('Wren \u{1F44D}')).toBe('Wren \u{1F44D}');
+  });
+
+  it('cuts a name full of emoji down to the limit without leaving half a character behind', () => {
+    const tidied = sanitizeBinderName(`Wren ${'\u{1F44D}'.repeat(7)}`);
+    expect(hasHalfACharacter(tidied)).toBe(false);
+    expect(tidied.length).toBeLessThanOrEqual(binderContent.nameMaxLength);
+  });
+
+  it('never leaves half a character behind, wherever the cut happens to land', () => {
+    for (const start of ['', 'A', 'Wren ', 'Wren Ashfor']) {
+      for (let emoji = 1; emoji <= 30; emoji++) {
+        const tidied = sanitizeBinderName(start + '\u{1F44D}'.repeat(emoji));
+        expect(hasHalfACharacter(tidied)).toBe(false);
+        expect(tidied.length).toBeLessThanOrEqual(binderContent.nameMaxLength);
+      }
+    }
+  });
+
+  it('repairs a saved name that already had half a character in it', () => {
+    const damaged = `Wren ${'\u{1F44D}'.repeat(2)}\ud83d`;
+    expect(hasHalfACharacter(damaged)).toBe(true);
+    expect(sanitizeBinderName(damaged)).toBe(`Wren ${'\u{1F44D}'.repeat(2)}`);
+  });
+
+  it('suggests a name when the player types nothing but invisible characters', () => {
+    const invisibleCharacters = [
+      '\u200b', // zero-width space
+      '\u200d', // zero-width joiner
+      '\u00ad', // soft hyphen
+      '\u2800', // braille pattern blank
+      '\u3164', // Hangul filler
+      '\ufeff', // zero-width no-break space
+    ];
+    for (const invisible of invisibleCharacters) {
+      const tidied = sanitizeBinderName(invisible.repeat(4));
+      expect(binderContent.nameParts.first).toContain(tidied.split(' ')[0]);
+    }
+  });
+
+  it('strips the invisible control characters that arrive with text pasted from a word processor', () => {
+    expect(sanitizeBinderName('Wren\u0085Ashford')).toBe('Wren Ashford');
+    expect(sanitizeBinderName('Wren\u009bAshford')).toBe('Wren Ashford');
+  });
+
+  it('strips the hidden characters that would make the rest of a name read backwards', () => {
+    expect(sanitizeBinderName('Wren\u202eAshford')).toBe('Wren Ashford');
+    expect(sanitizeBinderName('\u2066Wren Ashford\u2069')).toBe('Wren Ashford');
   });
 });

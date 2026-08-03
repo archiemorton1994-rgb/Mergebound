@@ -393,3 +393,101 @@ describe('economy: merge stones earned through play', () => {
     );
   });
 });
+
+describe('economy: the daily merge stone limit defends itself against an edited save file', () => {
+  // Nothing in economy.ts can make either day counter negative — a new day zeroes
+  // them and both functions only ever add. A tampered save file can, though, and a
+  // negative counter used to be read as EXTRA daily allowance on top of the cap,
+  // sold at the cheapest price of the day. These tests are that door being shut.
+  const TAMPERED_BELOW_ZERO = -20;
+
+  it('a save file claiming fewer than zero merge stones bought today still cannot buy more than the daily limit', () => {
+    const tampered = makeEconomyState({ stonesPurchasedToday: TAMPERED_BELOW_ZERO });
+    const result = buyMergeStones(tampered, makeWallet({ gold: UNLIMITED_GOLD }), 999, 0);
+    expect(result.bought).toBe(economy.dailyCaps.stonesPurchased);
+  });
+
+  it('a save file claiming fewer than zero merge stones bought today pays the same gold as an honest one', () => {
+    const tampered = makeEconomyState({ stonesPurchasedToday: TAMPERED_BELOW_ZERO });
+    const wallet = makeWallet({ gold: UNLIMITED_GOLD });
+    const cheated = buyMergeStones(tampered, wallet, 999, 0);
+    const honest = buyMergeStones(makeEconomyState(), wallet, 999, 0);
+    expect(cheated.goldSpent).toBe(honest.goldSpent);
+    expect(cheated.wallet).toEqual(honest.wallet);
+  });
+
+  it('a save file claiming fewer than zero merge stones earned today still cannot earn more than the daily limit', () => {
+    const tampered = makeEconomyState({ stonesEarnedToday: TAMPERED_BELOW_ZERO });
+    expect(creditEarnedStones(tampered, 1_000_000).credited).toBe(economy.dailyCaps.stonesEarned);
+  });
+
+  it('an edited save file cannot squeeze more merge stones out of one day than the caps allow', () => {
+    const tampered = makeEconomyState({
+      stonesEarnedToday: TAMPERED_BELOW_ZERO,
+      stonesPurchasedToday: TAMPERED_BELOW_ZERO,
+    });
+    const earned = creditEarnedStones(tampered, 10_000);
+    const bought = buyMergeStones(earned.economy, makeWallet({ gold: UNLIMITED_GOLD }), 10_000, 0);
+    expect(earned.credited + bought.bought).toBe(
+      economy.dailyCaps.stonesEarned + economy.dailyCaps.stonesPurchased,
+    );
+  });
+
+  it('buying merge stones writes back a sensible day counter instead of leaving a nonsense one', () => {
+    const tampered = makeEconomyState({ stonesPurchasedToday: TAMPERED_BELOW_ZERO });
+    const result = buyMergeStones(tampered, makeWallet({ gold: UNLIMITED_GOLD }), 3, 0);
+    expect(result.economy.stonesPurchasedToday).toBe(3);
+  });
+
+  it('crediting earned merge stones writes back a sensible day counter instead of leaving a nonsense one', () => {
+    const tampered = makeEconomyState({ stonesEarnedToday: TAMPERED_BELOW_ZERO });
+    expect(creditEarnedStones(tampered, 4).economy.stonesEarnedToday).toBe(4);
+  });
+
+  it('an honest day counter is left exactly as it was found', () => {
+    const state = makeEconomyState({ stonesEarnedToday: 7, stonesPurchasedToday: 5 });
+    expect(creditEarnedStones(state, 2).economy.stonesEarnedToday).toBe(9);
+    const bought = buyMergeStones(state, makeWallet({ gold: UNLIMITED_GOLD }), 2, 0);
+    expect(bought.economy.stonesPurchasedToday).toBe(7);
+  });
+});
+
+describe('economy: asking the price of merge stones can never freeze the game', () => {
+  // The price of a bundle is worked out by adding up one stone at a time, and the
+  // number asked for is the only thing that ends that loop. A nonsensical number
+  // used to mean it never ended — on a phone that is a frozen game, not a wrong
+  // number, so a nonsensical request now simply prices at nothing.
+
+  it('asking the price of an impossible number of merge stones answers instead of counting forever', () => {
+    expect(stoneBundlePrice(Infinity, 0, 0)).toBe(0);
+    expect(stoneBundlePrice(-Infinity, 0, 0)).toBe(0);
+  });
+
+  it('asking the price of a number that is not a number at all costs nothing', () => {
+    expect(stoneBundlePrice(NaN, 0, 0)).toBe(0);
+  });
+
+  it('asking the price of an absurdly large pile of merge stones answers straight away', () => {
+    // Beyond about twelve thousand stones the running total is already more gold
+    // than a number can hold, so every further stone adds nothing but delay. Before
+    // this was fixed a billion stones took minutes; the test would time out.
+    expect(stoneBundlePrice(1_000_000_000, 0, 0)).toBe(Infinity);
+  });
+
+  it('a real bundle price is completely unaffected by those guards', () => {
+    expect(stoneBundlePrice(3, 0, 0)).toBe(stonePriceAt(0, 0) + stonePriceAt(0, 1) + stonePriceAt(0, 2));
+    expect(stoneBundlePrice(10, 4, 7)).toBe(
+      Array.from({ length: 10 }, (_unused, i) => stonePriceAt(4, 7 + i)).reduce((a, b) => a + b, 0),
+    );
+  });
+
+  it('asking to buy an impossible number of merge stones buys exactly the daily limit', () => {
+    const result = buyMergeStones(makeEconomyState(), makeWallet({ gold: UNLIMITED_GOLD }), Infinity, 0);
+    expect(result.bought).toBe(economy.dailyCaps.stonesPurchased);
+  });
+
+  it('asking how many merge stones an impossible allowance covers answers instead of counting forever', () => {
+    expect(stonesAffordable(UNLIMITED_GOLD, 0, 0, Infinity)).toBe(0);
+    expect(stonesAffordable(UNLIMITED_GOLD, 0, 0, NaN)).toBe(0);
+  });
+});
