@@ -18,6 +18,20 @@ Keep this file honest: when something here gets built, move it to `CLAUDE.md` an
 
 **Never sell power directly.** No selling finished creatures, gear, or stat outcomes for real money. Sell *time* (energy/refills, materials) and *vanity* (cosmetics), plus eventually a seasonal pass. The moment a player can buy a max-roll tier-6 creature, the merge loop — the thing that makes this game its own thing — stops mattering, grinders feel obsolete, and churn cascades. This also keeps clear of loot-box regulation (Belgium/Netherlands bans, app-store odds-disclosure rules).
 
+**The Binder never attacks, but what they wear matters.** *Decided by the owner 2026-08-03, settling the open question that used to live in this file.* The Binder is a visible, customisable character who directs from the sidelines — never a combatant, never a target, never taking a turn. Their gear (swords, amulets, armour) grants stat bonuses **to the player's creatures**, exactly the way a species' `baseStats` do.
+
+Why this is the right shape: battles keep the party format and AI that are already built and tested — no rebalancing around a fourth body, no Binder-only moveset, no potion-turn economy. Gear still has somewhere meaningful to go, so "Gear and the forge" keeps its place on the build order. And the creatures stay the stars of the screen, which is the whole point of a creature-collecting game.
+
+**Currency roles are fixed.** *Decided by the owner 2026-08-03.*
+
+- **Gold** — the everyday earned currency. Paid out by **battles** and by **idle income**. Spent on forging gear and on buying merge stones.
+- **Merge stones** — spent to merge. Earned through play, **or** bought with gold. This is what stops merging being free and gives gold somewhere to go, without ever gating the merge loop behind real money.
+- **Gems** — the premium currency. Bought with real money, and occasionally awarded in **small** amounts for completing challenges. Gems can buy the other two.
+
+Note the chain this creates: gems → gold → merge stones → merges. That is a real-money path to *faster* merging, which is fine and intended — it sells time. It must never become a path to *better* outcomes: no gem purchase may improve a stat roll, guarantee a rare type, or skip the pity counter. That line is what keeps this on the right side of "never sell power directly".
+
+**Art is drawn, not photographed.** *Decided by the owner 2026-08-03.* A hybrid approach: authored illustrations for the fixed, finite things (eggs, battle backdrops, region scenes, tutorial art), and **procedural vector art for creatures**, derived from the creature's own data. Creatures must stay procedural — merging can produce far more species/type combinations than anyone can hand-draw, and every one of them needs to look deliberate. See `src/art/creatureArt.ts`.
+
 ---
 
 ## Proposed, not yet built
@@ -29,17 +43,6 @@ The nine elements once flowed from a single source, **the Wellspring**. A catacl
 The player is a **Binder**, someone who has relearned the old Warden-magic of fusion (merging) — how the Wellspring's power originally worked. Each region cleared is a fragment of the world stabilising. Each boss is a **Discordant**: a corrupted apex Warden born of concentrated imbalance, guarding a Wellspring shard.
 
 Why this premise earns its keep: it explains mechanics that already exist rather than decorating them. Aether is rarest *because* it is a shard of the Wellspring itself — which is also why it sits outside the eight-type effectiveness wheel. Gear exists because a Binder needs tools to channel fusion. Umbra/Lumen counter only each other because of a duality older than the break.
-
-### The player character — the Binder (⚠️ needs a decision)
-
-**Proposal: the Binder is a fourth combatant, not a spectator.** Player side becomes Binder + up to 3 Wardens. The Binder is just another `Combatant` running through the existing, already-tested battle engine.
-
-- **Weapon class = basic attack style**, reusing the reliable/heavy pattern already built for creature moves: Sword (balanced physical), Axe (heavy physical), Bow (reliable physical), Staff (opens the special/spell line). No new combat maths.
-- **Spells**: a small Binder-only moveset (2–4 slots), same `MoveDef` shape creatures use.
-- **Potions**: consumables that *cost the Binder's turn*, so healing stays a real tradeoff rather than a free action.
-- **Gear slots** (weapon, armor, accessory) grant stat bonuses exactly like a species' `baseStats` — forged and upgraded via the "Gear and the forge" phase already on the build order.
-
-**Open question the owner has not answered yet:** is the Binder a combatant (above), or a non-combatant commander who buffs/supports from outside the party? This choice ripples through gear, spells, campaign difficulty tuning and UI, so settle it before building any of it.
 
 ### Campaign structure (proposed)
 
