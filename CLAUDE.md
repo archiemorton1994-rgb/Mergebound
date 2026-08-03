@@ -73,10 +73,9 @@ Do not build ahead of this order without the owner asking for it.
   - `src/data/` — species, types, and balance JSON.
   - `src/screens/` — UI: `EggScreen.tsx` (slice-1 flow), `CreatureCard.tsx` (placeholder art), `CollectionContext.tsx` (state + AsyncStorage persistence — the only file that touches storage).
   - `app/` — expo-router route files only; no logic.
-- `artifacts/api-server/` — Express API scaffold. Only a `/api/healthz` endpoint so far; no game features use it.
-- `artifacts/mockup-sandbox/` — Replit's design-mockup harness (generated shadcn components). Not part of the game; don't edit by hand.
-- `lib/` — API workspace packages: `api-spec` (OpenAPI source of truth), `api-client-react` + `api-zod` (generated — regenerate via codegen, never hand-edit), `db` (Drizzle schema, currently empty).
-- `scripts/` — workspace scripts (placeholder only).
+- `artifacts/api-server/` — Express API scaffold. Only a `/api/healthz` endpoint so far; no game features use it yet, but it's real registered Replit deployment infrastructure (production build/run/health-check wired in its `.replit-artifact/artifact.toml`), not orphaned code — future server-authoritative features (battles, idle income, IAP validation) will likely build on it.
+- `lib/` — API workspace packages backing `api-server`: `api-spec` (OpenAPI source of truth), `api-client-react` + `api-zod` (generated — regenerate via codegen, never hand-edit), `db` (Drizzle schema, currently empty, scaffolded ahead of need).
+- `scripts/post-merge.sh` — the only thing left in `scripts/`. Run automatically by Replit after every pull (`.replit`'s `[postMerge]` hook): reinstalls deps and pushes DB schema changes. Not a pnpm package — invoked directly by path.
 
 ## Environment gotchas
 
