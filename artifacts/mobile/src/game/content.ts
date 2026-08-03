@@ -6,17 +6,28 @@
  */
 
 import balanceJson from '../data/balance.json';
+import movesJson from '../data/moves.json';
 import speciesJson from '../data/species.json';
 import typesJson from '../data/types.json';
-import type { SpeciesDef, TypeDef, TypeRarity } from './models';
+import type { Creature, MoveDef, SpeciesDef, TypeDef, TypeRarity } from './models';
 
 export const allSpecies: SpeciesDef[] = speciesJson.species;
 export const allTypes: TypeDef[] = typesJson.types as TypeDef[];
+export const allMoves: MoveDef[] = movesJson.moves as MoveDef[];
+
+interface EffectivenessEntry {
+  attacker: string;
+  defender: string;
+  multiplier: number;
+}
+
+const allEffectiveness: EffectivenessEntry[] = typesJson.effectiveness;
 
 export const balance = {
   tierMultipliers: balanceJson.tierMultipliers as number[],
   statRollVariance: balanceJson.statRollVariance as number,
   eggsPerBatch: balanceJson.eggsPerBatch as number,
+  combatDamageVariance: balanceJson.combatDamageVariance as number,
   typeRarityWeights: balanceJson.typeRarityWeights as unknown as Record<TypeRarity, number>,
 };
 
@@ -35,6 +46,40 @@ export function getType(typeId: string): TypeDef {
 /** Hatch weight for a type, driven by its rarity (see balance.json typeRarityWeights). */
 export function typeWeight(type: TypeDef): number {
   return balance.typeRarityWeights[type.rarity];
+}
+
+/** Every move a type grants, in types.json move-authoring order. */
+export function movesForType(typeId: string): MoveDef[] {
+  return allMoves.filter((m) => m.typeId === typeId);
+}
+
+/** Every move available to a creature — the union of its 1-2 types' movepools. */
+export function movesForCreature(creature: Creature): MoveDef[] {
+  return creature.types.flatMap((t) => movesForType(t));
+}
+
+/**
+ * The damage multiplier for one attacking type against one defending type:
+ * 2 = strong, 0.5 = weak, 1 = neutral (no entry either way).
+ */
+function singleTypeEffectiveness(attackerTypeId: string, defenderTypeId: string): number {
+  const entry = allEffectiveness.find(
+    (e) => e.attacker === attackerTypeId && e.defender === defenderTypeId,
+  );
+  return entry?.multiplier ?? 1;
+}
+
+/**
+ * The full damage multiplier for a move's type against a (possibly dual-typed)
+ * defender: each of the defender's types is checked independently and the
+ * multipliers stack, same as the classic dual-type formula this table is
+ * modelled on.
+ */
+export function typeEffectiveness(attackerTypeId: string, defenderTypeIds: string[]): number {
+  return defenderTypeIds.reduce(
+    (mult, defenderTypeId) => mult * singleTypeEffectiveness(attackerTypeId, defenderTypeId),
+    1,
+  );
 }
 
 /**

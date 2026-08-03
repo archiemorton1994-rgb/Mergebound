@@ -3,6 +3,8 @@
   "tierMultipliers": [1.0, 1.5, 2.2, 3.2, 4.6, 6.5, 9.0],
   "statRollVariance": 0.15,
   "eggsPerBatch": 4,
+  "combatDamageVariance": 0.1,
+  "combatDamageVarianceComment": "±10% random roll applied to every hit's damage, on top of the type/crit multipliers — see computeDamage in battle.ts.",
   "typeRarityWeights": {
     "comment": "Relative hatch weight per type rarity tier (types.json). With 6 common + 2 rare + 1 mythic type at these weights, a rare type is about 1 in 40 hatches and the mythic Aether is about 1 in 200.",
     "common": 100,

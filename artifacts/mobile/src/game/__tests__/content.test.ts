@@ -6,16 +6,21 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  allMoves,
   allSpecies,
   allTypes,
   balance,
   cumulativeStatMultiplier,
   getSpecies,
   getType,
+  movesForCreature,
+  movesForType,
   tierMultiplier,
+  typeEffectiveness,
   typeWeight,
 } from '../content';
 import { STAT_KEYS } from '../models';
+import { makeCreature } from './helpers';
 
 describe('content lookups', () => {
   it('finds every species listed in species.json', () => {
@@ -90,6 +95,75 @@ describe('type hatch weights', () => {
     }
     expect(weights.common).toBeGreaterThan(weights.rare);
     expect(weights.rare).toBeGreaterThan(weights.mythic);
+  });
+});
+
+describe('moves', () => {
+  it('every type grants at least one damage move', () => {
+    for (const t of allTypes) {
+      const damageMoves = movesForType(t.id).filter((m) => m.kind === 'damage');
+      expect(damageMoves.length, t.id).toBeGreaterThan(0);
+    }
+  });
+
+  it('every move id is unique', () => {
+    const ids = allMoves.map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('every move references a real type', () => {
+    const typeIds = new Set(allTypes.map((t) => t.id));
+    for (const m of allMoves) {
+      expect(typeIds.has(m.typeId), m.id).toBe(true);
+    }
+  });
+
+  it('exactly bloom, umbra and lumen grant a support move (heal or drain)', () => {
+    const supportTypeIds = allTypes
+      .filter((t) => movesForType(t.id).some((m) => m.kind === 'heal' || m.kind === 'drain'))
+      .map((t) => t.id)
+      .sort();
+    expect(supportTypeIds).toEqual(['bloom', 'lumen', 'umbra'].sort());
+  });
+
+  it('movesForCreature returns the union of a dual-typed creature’s two movepools', () => {
+    const creature = makeCreature({ types: ['ember', 'bloom'] });
+    const moves = movesForCreature(creature);
+    expect(moves.some((m) => m.typeId === 'ember')).toBe(true);
+    expect(moves.some((m) => m.typeId === 'bloom')).toBe(true);
+    expect(moves).toHaveLength(movesForType('ember').length + movesForType('bloom').length);
+  });
+
+  it('every heal/drain fraction is a sane, positive proportion', () => {
+    for (const m of allMoves) {
+      if (m.kind === 'heal') expect(m.healFraction).toBeGreaterThan(0);
+      if (m.kind === 'drain') expect(m.drainFraction).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('type effectiveness', () => {
+  it('is neutral (1x) when there is no entry either way', () => {
+    expect(typeEffectiveness('aether', ['ember'])).toBe(1);
+    expect(typeEffectiveness('ember', ['aether'])).toBe(1);
+  });
+
+  it('is strong (2x) exactly where types.json says so', () => {
+    expect(typeEffectiveness('ember', ['bloom'])).toBe(2);
+  });
+
+  it('is weak (0.5x) exactly where types.json says so', () => {
+    expect(typeEffectiveness('ember', ['volt'])).toBe(0.5);
+  });
+
+  it('stacks multiplicatively across a dual-typed defender', () => {
+    expect(typeEffectiveness('ember', ['bloom', 'volt'])).toBe(1); // 2 * 0.5
+  });
+
+  it('umbra and lumen are strong against each other and nothing else', () => {
+    expect(typeEffectiveness('umbra', ['lumen'])).toBe(2);
+    expect(typeEffectiveness('lumen', ['umbra'])).toBe(2);
+    expect(typeEffectiveness('umbra', ['ember'])).toBe(1);
   });
 });
 

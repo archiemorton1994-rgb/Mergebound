@@ -3,7 +3,7 @@
  * so each test only states the fields it actually cares about.
  */
 
-import type { Creature, Stats } from '../models';
+import type { Creature, Rng, Stats } from '../models';
 
 export const defaultStats: Stats = {
   hp: 40,
@@ -43,5 +43,21 @@ export function makeCreature(overrides: Partial<Creature> = {}): Creature {
     statRolls: { ...defaultStatRolls },
     parentIds: [],
     ...overrides,
+  };
+}
+
+/**
+ * An rng that plays back a fixed sequence of values (repeating the last one
+ * once exhausted), so a test can control exactly which roll happens on
+ * which call — e.g. forcing a crit, forcing a miss, forcing the midpoint of
+ * a variance band.
+ */
+export function sequenceRng(values: number[]): Rng {
+  let i = 0;
+  return () => {
+    const v = values[Math.min(i, values.length - 1)];
+    i++;
+    if (v === undefined) throw new Error('sequenceRng called with an empty array');
+    return v;
   };
 }

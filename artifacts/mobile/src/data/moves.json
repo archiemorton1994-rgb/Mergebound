@@ -1,0 +1,34 @@
+{
+  "comment": "Every type grants a physical and a special damage move (same power/accuracy across the board for now — the interesting differences come from category, type effectiveness, and the user's own stats, not move-to-move tuning). Bloom, Umbra and Lumen additionally grant a support move, establishing the healer/drain archetypes: Bloom heals whichever ally is lowest, Lumen heals the whole party a little, Umbra deals damage and heals itself off it. See battle.ts for how these are resolved.",
+  "moves": [
+    { "id": "flame-fang",      "name": "Flame Fang",      "typeId": "ember",  "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "cinder-burst",    "name": "Cinder Burst",    "typeId": "ember",  "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+
+    { "id": "vine-lash",       "name": "Vine Lash",       "typeId": "bloom",  "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "spore-cloud",     "name": "Spore Cloud",     "typeId": "bloom",  "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+    { "id": "mending-vines",   "name": "Mending Vines",   "typeId": "bloom",  "kind": "heal", "target": "lowest-ally", "healFraction": 0.3, "accuracy": 100 },
+
+    { "id": "wave-slam",       "name": "Wave Slam",       "typeId": "tide",   "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "tidal-pulse",     "name": "Tidal Pulse",     "typeId": "tide",   "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+
+    { "id": "gust-strike",     "name": "Gust Strike",     "typeId": "gale",   "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "cyclone-burst",   "name": "Cyclone Burst",   "typeId": "gale",   "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+
+    { "id": "boulder-crush",   "name": "Boulder Crush",   "typeId": "crag",   "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "tremor-wave",     "name": "Tremor Wave",     "typeId": "crag",   "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+
+    { "id": "shock-tackle",    "name": "Shock Tackle",    "typeId": "volt",   "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "arc-bolt",        "name": "Arc Bolt",        "typeId": "volt",   "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+
+    { "id": "shadow-claw",     "name": "Shadow Claw",     "typeId": "umbra",  "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "nightmare-pulse", "name": "Nightmare Pulse", "typeId": "umbra",  "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+    { "id": "withering-grasp", "name": "Withering Grasp", "typeId": "umbra",  "kind": "drain", "category": "special", "power": 40, "drainFraction": 0.5, "accuracy": 95 },
+
+    { "id": "radiant-strike",  "name": "Radiant Strike",  "typeId": "lumen",  "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "prism-flare",     "name": "Prism Flare",     "typeId": "lumen",  "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 },
+    { "id": "radiant-veil",    "name": "Radiant Veil",    "typeId": "lumen",  "kind": "heal", "target": "party", "healFraction": 0.2, "accuracy": 100 },
+
+    { "id": "voidrend-claw",   "name": "Voidrend Claw",   "typeId": "aether", "kind": "damage", "category": "physical", "power": 50, "accuracy": 95 },
+    { "id": "starfall-surge",  "name": "Starfall Surge",  "typeId": "aether", "kind": "damage", "category": "special",  "power": 50, "accuracy": 95 }
+  ]
+}

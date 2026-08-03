@@ -61,5 +61,45 @@ export interface TypeDef {
   rarity: TypeRarity;
 }
 
+/** Which attack stat a move uses: atk/def for physical, spAtk/spDef for special. */
+export type MoveCategory = 'physical' | 'special';
+
+interface MoveBase {
+  id: string;
+  name: string;
+  /** The type (in types.json) that grants this move. */
+  typeId: string;
+  /** 0-100 chance to hit. */
+  accuracy: number;
+}
+
+/** A plain damage move against one enemy. */
+export interface DamageMove extends MoveBase {
+  kind: 'damage';
+  category: MoveCategory;
+  /** Damage scale — see mergedDamage in battle.ts for the full formula. */
+  power: number;
+}
+
+/** A support move that restores HP instead of dealing damage. */
+export interface HealMove extends MoveBase {
+  kind: 'heal';
+  /** 'lowest-ally' heals whichever living ally (including the user) has the lowest HP%; 'party' heals every living ally a little. */
+  target: 'lowest-ally' | 'party';
+  /** Fraction of the target's max HP restored, e.g. 0.3 = 30%. Never overheals past max. */
+  healFraction: number;
+}
+
+/** A damage move that also heals its user for a fraction of the damage dealt. */
+export interface DrainMove extends MoveBase {
+  kind: 'drain';
+  category: MoveCategory;
+  power: number;
+  /** Fraction of the damage dealt that heals the user, e.g. 0.5 = 50%. */
+  drainFraction: number;
+}
+
+export type MoveDef = DamageMove | HealMove | DrainMove;
+
 /** A random source: returns a float in [0, 1). Seeded implementations live in rng.ts. */
 export type Rng = () => number;
