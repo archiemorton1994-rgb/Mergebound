@@ -1,6 +1,6 @@
-# [Project name]
+# Creature Merge RPG
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A mobile creature-merging RPG (Expo + TypeScript). Slice 1: hatch eggs, merge two creatures with deterministic rules, persist the collection locally.
 
 ## Run & Operate
 
